@@ -537,3 +537,131 @@ conservative-expansion policy potentially changing).
 
 **Milestone:** Before Milestone 4's pipeline is trusted on real,
 densely-packed documents.
+
+---
+
+## 13. Live IndicTrans2 translation benchmark (point 8) — blocked, not skipped
+
+Raised by Decision 15 / `docs/research/indictrans2-feasibility.md`.
+The adapter (`core/translation/indictrans2_backend.py`) is code-
+complete and interface-tested but has never been run against a real
+loaded model.
+
+**Why documentation is insufficient:** actual translation quality,
+placeholder survival through a REAL model (not the mock), and real
+latency/memory can only be observed by running it.
+
+**Experiment:** Once a Linux/WSL environment with `pip` access is
+available (see the feasibility doc's unblock conditions), run the
+13-sentence-category benchmark point 8 specifies (simple/compound/
+technical sentence, numbers, dates, currency, URL, email, mixed
+English+Indic, punctuation, proper nouns, long sentence, paragraph)
+across all 5 target pairs (en→hi/te/ta/kn/ml) through
+`IndicTrans2Backend`, and record input/output/errors/placeholder
+survival/truncation exactly as point 8 specifies — not just "it ran
+without an exception."
+
+**Input:** A dedicated benchmark fixture (not yet created — create it
+alongside this experiment, per point 8, as plain text pairs, not a
+PDF; PDF integration is already proven separately via the mock
+backend).
+
+**Expected observation:** A representative sample of real IndicTrans2
+output quality per language, forming the "clean baseline" point 21
+asks for (to be compared against contextual review in a LATER
+milestone — never mixed with post-editing now).
+
+**Metric:** Per the benchmark's own categories — obvious errors,
+placeholder preservation, untranslated fragments, truncation,
+hallucinated content, cold-start vs. warm latency, memory usage.
+
+**Decision threshold:** If Hindi/Telugu/Tamil/Kannada/Malayalam quality
+diverges as strongly as the official benchmark paper's aggregate
+numbers suggested (Hindi > Dravidian languages, per Milestone 1's
+research), that should shape user-facing quality expectations, not
+just be a research footnote.
+
+**Milestone:** Before Milestone 5 can be considered FULLY complete —
+this is Definition-of-Done item #10, explicitly still open. Should be
+the first thing attempted once environment access allows it, before
+any further translation-architecture work.
+
+---
+
+## 14. Multi-span translation units through the PDF pipeline
+
+Raised by Decision 15's "known gap." `core/translation/units.py`
+correctly groups multi-span lines (e.g. "Total"/"₹"/"1500") into one
+translation unit, but `pipeline_bridge.py` currently maps the
+translated result onto only the FIRST member span's bbox — a
+simplification, not a redesign of Milestone 4 (explicitly out of scope
+this milestone).
+
+**Why documentation is insufficient:** no current fixture contains a
+multi-span line, so this gap is theoretical, not yet observed as a
+defect — but it will surface as soon as a real multi-styled PDF line
+(e.g. bold "Total" + regular "₹1500") is translated.
+
+**Experiment:** Build a small fixture with a genuine multi-span line
+(mixed bold/regular styling within one sentence), translate it via the
+mock backend, and observe what actually happens — does the translated
+text render only in the first span's (likely too-narrow) bbox, causing
+clipping or an unexpectedly aggressive font reduction?
+
+**Input:** A dedicated multi-span PDF fixture.
+
+**Expected observation:** Likely a cramped/reduced-font render in the
+first span's original bbox, since the FULL translated unit's text is
+being squeezed into a fraction of the original line's actual width.
+
+**Metric:** Fit status distribution (how often this degrades to
+`NO_FIT` or aggressive font reduction) vs. the union-bbox that would
+be available if Milestone 4 were extended to support multi-span
+regions.
+
+**Decision threshold:** If this proves to be a common, quality-
+damaging pattern on real documents, extending Milestone 4's
+`TranslationInput`/planner to accept a UNION bbox spanning multiple
+source spans (redacting all of them, reinserting into their combined
+region) becomes justified — a genuine Milestone 4 extension, not
+something to retrofit quietly into Milestone 5.
+
+**Milestone:** Before real (non-fixture) documents with multi-styled
+translatable lines are processed.
+
+---
+
+## 15. Calibrating UnitSplitter's threshold to a real tokenizer
+
+Raised by Decision 15. `UnitSplitter`'s default `max_chars=800` is an
+explicitly-documented character-count APPROXIMATION of IndicTrans2's
+real `max_length=256` (subword) token cap — the two have never been
+compared against the actual tokenizer.
+
+**Why documentation is insufficient:** character-to-token ratio is
+script- and tokenizer-specific; only measuring against the real
+IndicTrans2 tokenizer (once available) gives a trustworthy number.
+
+**Experiment:** Once `IndicTrans2Backend` is runnable (Experiment 13's
+blocker), tokenize a range of English/Hindi/Telugu/Tamil/Kannada
+strings of known character length with the real tokenizer, and derive
+a per-script safe character threshold that reliably stays under 256
+tokens with margin.
+
+**Input:** Text samples spanning short to very long, per script.
+
+**Expected observation:** A per-script (or conservatively, a single
+worst-case) character threshold to configure `UnitSplitter` with when
+paired with `IndicTrans2Backend` specifically, rather than the generic
+800-character default used for backend-agnostic testing.
+
+**Metric:** Token count vs. character count ratio per script.
+
+**Decision threshold:** If the current 800-character default proves
+unsafe (produces inputs that exceed 256 tokens) for any tested script,
+lower the default or make `IndicTrans2Backend` supply its own
+calibrated `UnitSplitter` instance rather than relying on the generic
+one.
+
+**Milestone:** Alongside Experiment 13, once environment access allows
+a live run.

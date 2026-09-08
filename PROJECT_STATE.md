@@ -6,9 +6,146 @@ giant prompt" — see CLAUDE.md's development protocol.
 
 ## Current milestone
 
-**Milestone 4 — Whole-Document Redact/Reinsert Pipeline: DONE (2026-09-08).**
+**Milestone 5 — Translation Engine Integration: DONE with one open
+item (2026-09-08).** Definition-of-Done items 1-9, 11-17 met. Item 10
+("language pairs experimentally exercised where the environment
+supports it") is NOT met — see "Open item" below, tracked honestly
+rather than marked done.
 
 ### Completed components
+
+`core/translation/`:
+- `registry.py` — `LANGUAGES` (en/hi/te/ta/kn/ml), FLORES-200 model
+  codes reused from Milestone 1's verified research (not re-derived),
+  script/font mapping. `Backend.supported_languages()` remains the
+  actual authority, not the registry.
+- `models.py` — `TranslationRequest`/`TranslationResult`/
+  `TranslationContext`/`TranslationErrorCode` (10 structured codes,
+  point 12). `confidence` stays `None` unless a backend genuinely
+  reports one — never invented.
+- `backend.py` — `TranslationBackend` Protocol (`translate`/
+  `translate_batch`/`supported_languages`/`backend_info`),
+  `TranslationBackendUnavailableError`.
+- `mock_backend.py` — `MockTranslationBackend`: deterministic lookup
+  table, zero model dependencies. Unknown text gets a clearly-marked
+  `[[lang]] text` fallback, never a fake-looking translation.
+- `protected_entities.py` — regex-based URL/email/currency/date/number
+  protect+restore (point 6), explicitly NOT full NER — a stated v1
+  scope boundary.
+- `units.py` — `TranslationUnit`, one per TEXT block, carrying every
+  member span's id (the "Total"/"₹"/"1500" non-fragmentation example
+  from point 5, satisfied by construction).
+- `splitting.py` — `UnitSplitter`: sentence-boundary (incl. Devanagari
+  `।`) splitting, never truncates; returns `None` (→
+  `UNIT_SPLIT_FAILED`) when no safe split exists.
+- `service.py` — `TranslationService`: protect → split → ONE batched
+  `translate_batch()` call across every segment of every unit → restore
+  → quality gates (non-empty, placeholders intact, no stray control
+  chars) → exactly one `TranslationResult` per input unit, in order.
+- `indictrans2_backend.py` — `IndicTrans2Backend`, isolated (only file
+  in the project allowed to import torch/transformers/
+  IndicTransToolkit, and only lazily, inside methods). Uses the
+  OFFICIAL preprocessing/inference path (`IndicProcessor.preprocess_batch`
+  → tokenizer → `model.generate(max_length=256, num_beams=5)` →
+  `batch_decode` → `IndicProcessor.postprocess_batch`), fetched via
+  WebFetch from AI4Bharat's own `example.py`, not reimplemented.
+  `is_available()` capability check; raises
+  `TranslationBackendUnavailableError` (never a bare `ImportError`) if
+  dependencies are missing.
+- `pipeline_bridge.py` — the ONLY connection point to Milestone 4:
+  turns successful `TranslationResult`s into ordinary `TranslationInput`s.
+  Milestone 4 itself is unmodified.
+
+`docs/research/indictrans2-feasibility.md` — the feasibility gate,
+performed first per instructions: environment facts measured directly
+(no GPU/CUDA, Windows + WSL Ubuntu present), official requirements
+verified via WebFetch (not memory), gate result, and exactly what
+would unblock the live experiment.
+
+56 new tests (`test_translation_registry.py` ×7,
+`test_translation_models.py` ×4, `test_translation_mock_backend.py` ×7,
+`test_translation_protected_entities.py` ×8,
+`test_translation_splitting.py` ×6, `test_translation_units.py` ×5,
+`test_translation_service.py` ×9,
+`test_translation_indictrans2_backend.py` ×6 (1 skipped — appropriately,
+per point 20),
+`test_translation_pipeline_bridge.py` ×3,
+`test_translation_pdf_e2e.py` ×2) — **165 tests passing, 1 appropriately
+skipped** (up from 109). Includes a structural test
+(`test_full_translation_architecture_uses_no_pymupdf_mutation_apis_directly`)
+that parses every `core/translation/*.py` file via `ast` and asserts
+none of them call a PDF-mutation API directly — point 19 enforced by
+static check, not just code review.
+
+### Feasibility gate result (full detail: `docs/research/indictrans2-feasibility.md`)
+
+- **Native Windows: NOT SUPPORTED** — confirmed via WebFetch against
+  IndicTransToolkit's own README ("not meant/built/tested for
+  Windows"), not attempted.
+- **WSL Ubuntu: hardware-feasible, blocked by environment access.**
+  8 cores / 7.6 GiB RAM / 950 GB disk / Python 3.12.3 — genuinely
+  adequate for the distilled 200M-parameter model on CPU. But this
+  session's WSL image has no `pip`/`ensurepip`/`python3-venv`
+  installed, and installing them needs `sudo`, which requires an
+  interactive password this non-interactive session doesn't have.
+  This is an **access blocker, not a compatibility finding** — per the
+  milestone's own instruction not to fight the environment, this was
+  reported honestly rather than pursued further.
+- Real package/model facts recorded (not from memory): distilled
+  checkpoints `ai4bharat/indictrans2-en-indic-dist-200M` /
+  `-indic-en-dist-200M`; `numpy>=2.1, torch>=2.5, transformers>=4.51`;
+  official `max_length=256` generation cap.
+
+### Open item — Definition-of-Done #10 not met
+
+The live IndicTrans2 benchmark (point 8: 13 sentence categories × 5
+language pairs) was **not run** — blocked as above, not skipped
+without trying. Tracked as `docs/research/EXPERIMENTS.md` #13, to be
+the first thing attempted once environment access allows it (e.g. the
+user runs `sudo apt install python3-venv python3-pip` once in their
+own interactive WSL session). No code changes are anticipated to be
+needed at that point — `IndicTrans2Backend` is already written and
+interface-tested against the official API.
+
+### Known limitations discovered during implementation
+
+1. **Multi-span translation units aren't fully wired through Milestone
+   4 yet.** `units.py` correctly groups a multi-span line (e.g.
+   "Total"/"₹"/"1500") into one translation unit, but
+   `pipeline_bridge.py` maps the result onto only the FIRST member
+   span's bbox for actual PDF mutation. No current fixture has a
+   multi-span line, so this hasn't caused an observed defect, but it's
+   a real, documented gap (`docs/research/EXPERIMENTS.md` #14) —
+   extending Milestone 4 to support a union-bbox region would be
+   needed to fully close it, deliberately not attempted this milestone
+   (would be a Milestone 4 redesign).
+2. **`UnitSplitter`'s 800-character default is an unverified
+   approximation** of IndicTrans2's real 256-token generation cap —
+   the two have never been compared against the real tokenizer
+   (`docs/research/EXPERIMENTS.md` #15), since no live run was
+   possible.
+3. **Mock-backend "translated" text can still contain the literal
+   source string** when it falls back to the `[[lang]] text` marker
+   for anything not in its curated table — this correctly trips
+   Milestone 4's `source_text_removed` verification check (confirmed
+   while building the end-to-end test, not a bug — the check is
+   working as designed). The PDF e2e test uses a curated table entry
+   specifically to get a clean pass; this is documented so it isn't
+   mistaken for a pipeline defect later.
+
+**Next: either close the open item (run the live IndicTrans2 benchmark
+once environment access allows) or proceed to Milestone 6 (Context-
+Aware Translation) per the user's direction — Qwen/Ollama/contextual
+review remain explicitly NOT integrated, per this milestone's stop
+condition.**
+
+---
+
+## Previous milestones
+
+### Milestone 4 — Whole-Document Redact/Reinsert Pipeline: DONE (2026-09-08).
+
+#### Completed components
 
 `core/pipeline/`: `models.py` (`WholeDocumentTranslationRequest`,
 `TranslationInput`, `RenderConfig`/`FitConfig`/`MutationConfig`,
@@ -54,7 +191,7 @@ overlapping regions, page-bounds violation, renderer/missing-font
 failure, verification failure), determinism, and stage-level
 performance timing.
 
-### Real bug found and fixed during implementation
+#### Real bug found and fixed during implementation
 
 The executor's render-time CSS initially omitted `line-height`/
 `text-align`, which `TextMeasurer` (Milestone 3) always includes when
@@ -71,7 +208,7 @@ so the executor's render CSS is byte-identical to what
 at mutation time — a divergence there silently invalidates the fit
 decision.**
 
-### Experimentally observed behavior (not claimed, measured)
+#### Experimentally observed behavior (not claimed, measured)
 
 Whole-document pipeline, 5 blocks / 1 page (Telugu, Hindi, Tamil,
 Kannada, mixed): **656.6ms total, 131.3ms/block average** — planning+
@@ -81,7 +218,7 @@ re-opens 2-3 PDF handles, re-extracts the output document, renders
 per-region pixmaps). Not yet tested at real multi-page/many-block
 scale — see `docs/research/EXPERIMENTS.md` #11.
 
-### Remaining / open questions (not resolved here)
+#### Remaining / open questions (not resolved here)
 
 - **Whole-document scale untested** (Experiment #11) — only 1 page / 5
   blocks measured.
@@ -95,17 +232,9 @@ scale — see `docs/research/EXPERIMENTS.md` #11.
   and re-checks the FULL output document regardless of how few blocks
   changed; a targeted "only touched pages" optimization is deferred
   until Experiment #11 shows it's actually needed.
-- **No translation engine** — `TranslationInput` remains fixture/
-  test-supplied only, per the explicit stop condition. IndicTrans2/
-  Qwen/Ollama/PaddleOCR were not installed or integrated.
-
-**Next: Milestone 5 — Translation Provider Integration** (informed by
-Experiments #6 (Windows/IndicTransToolkit feasibility) and #11/#12
-above).
-
----
-
-## Previous milestones
+- **No translation engine at the time** — `TranslationInput` was
+  fixture/test-supplied only. **Now addressed, see Milestone 5 above**
+  (with one open item: the live IndicTrans2 benchmark).
 
 ### Milestone 3 — Automatic Text-Fit Engine: DONE (2026-09-08).
 
@@ -343,10 +472,12 @@ Note: this session's "Milestone 2" (Document Model) is a superset of
 master plan Section 53's M2 groundwork — it built the full normalized
 model/extraction/serialization layer plus a single-block redact/
 reinsert proof, rather than only "exact text replacement." This
-session's "Milestone 3" built the deterministic text-fit engine, and
+session's "Milestone 3" built the deterministic text-fit engine,
 "Milestone 4" built its whole-document application (plan/validate/
-mutate/verify) — still with translations supplied by fixtures only,
-no translation engine integrated yet.
+mutate/verify), and "Milestone 5" built the backend-independent
+translation architecture (mock backend fully working; IndicTrans2
+adapter code-complete but not yet run against a real model — see the
+open item above).
 
 1. ✅ PDF Forensics (`PDF → inspect → JSON`)
 2. ✅ Document Model + single-block redact/reinsert proof (this session)
@@ -356,9 +487,11 @@ no translation engine integrated yet.
    extract once, plan everything via the text-fit engine, validate
    collisions, mutate in one transactional pass, verify — never
    interleave extract/edit/re-extract, per Milestone 2's known
-   limitation #2). Translations still fixture-supplied only.
-4b. ⬜ Language detection
-5. ⬜ Translation provider integration
+   limitation #2).
+5. ✅ Translation engine integration (`core/translation/`; backend
+   abstraction, mock backend, IndicTrans2 adapter code-complete but
+   unexercised — live benchmark still open, `EXPERIMENTS.md` #13)
+5b. ⬜ Language detection
 6. ⬜ Context-aware (paragraph-level) translation
 7. ⬜ OCR for scanned PDFs
 8. ⬜ Tables and complex layout
@@ -395,6 +528,14 @@ no translation engine integrated yet.
   (`models.py`, `planner.py`, `validator.py`, `executor.py`,
   `verifier.py`, `pipeline.py`). Entry point:
   `pipeline.TranslationPipeline().run(request)`.
+- `core/translation/` — Milestone 5's translation layer (`registry.py`,
+  `models.py`, `backend.py`, `mock_backend.py`, `protected_entities.py`,
+  `units.py`, `splitting.py`, `service.py`, `indictrans2_backend.py`,
+  `pipeline_bridge.py`). Feeds `core/pipeline/` via `pipeline_bridge.py`
+  only — never mutates a PDF itself.
+- `docs/research/indictrans2-feasibility.md` — the Milestone 5
+  feasibility gate (environment facts, official requirements, gate
+  result, unblock conditions).
 
 ## Custom skills installed
 

@@ -707,3 +707,141 @@ consider narrowing pixel checks to changed regions only (already the
 case) plus a sampling strategy for very many untouched blocks rather
 than checking every single one — but only once profiling on a real
 multi-page document shows it's needed.
+
+---
+
+## 15. Translation engine integration (Milestone 5)
+
+**Decision:** `Document Model -> Translation Units -> TranslationBackend
+-> TranslatedSpan/TranslationResult -> quality gates -> Milestone 3
+TextFitEngine -> Milestone 4 TranslationPipeline -> PDF` — a backend-
+independent `core/translation/` layer sits entirely BEFORE Milestone
+4's existing pipeline, connected only through a thin bridge
+(`pipeline_bridge.py`) that turns successful `TranslationResult`s into
+ordinary Milestone-4 `TranslationInput`s. Milestone 4 itself is
+untouched — no PDF architecture redesign, per this milestone's
+explicit instruction.
+
+**Evidence:** Confirmed by `test_translation_pdf_e2e.py`'s
+`test_full_translation_architecture_uses_no_pymupdf_mutation_apis_directly`,
+which parses every file under `core/translation/` and asserts none of
+them call `insert_htmlbox`/`add_redact_annot`/`apply_redactions`/
+`insert_text`/`insert_textbox` — a structural guarantee, not just a
+design intention, that translation code cannot reach into PDF
+mutation.
+
+**Backend abstraction:** `TranslationBackend` (a `Protocol`, point 3)
+with `translate`/`translate_batch`/`supported_languages`/
+`backend_info`. Two implementations exist: `MockTranslationBackend`
+(deterministic, zero model dependencies, used by every pipeline/
+service test) and `IndicTrans2Backend` (isolated, lazy-imports its
+dependencies, raises `TranslationBackendUnavailableError` — never a
+bare `ImportError` — when unavailable). Both satisfy the same
+interface; nothing outside `indictrans2_backend.py` imports torch/
+transformers/IndicTransToolkit, confirmed by
+`test_module_imports_unconditionally` passing on a machine with none
+of them installed.
+
+**Translation-unit policy (point 5):** one unit per TEXT block
+(`core/translation/units.py`), carrying every member span's id, not
+just one — the explicit "Total"/"₹"/"1500" non-fragmentation example
+is satisfied by construction (`test_multi_span_line_becomes_one_unit_not_three`).
+Deliberately NOT sentence-level or semantic grouping, matching the
+"deterministic, testable initial policy" instruction. **Known gap,
+stated plainly:** `pipeline_bridge.py` maps a multi-span unit's
+translated text onto only its FIRST member span's bbox for actual PDF
+mutation, because Milestone 4's `TranslationInput` is fundamentally
+one-span-per-region — extending that would be a Milestone 4 redesign,
+explicitly out of scope here. No current fixture exercises a
+multi-span block, so this gap has not yet caused an observed defect,
+but it is a real limitation for future content with mixed-style runs
+within one line.
+
+**Protected entities (point 6):** regex-based, deterministic
+(`core/translation/protected_entities.py`) — URL, email, currency,
+date, number, in that priority order (broader/more specific patterns
+protected before the generic number pattern would otherwise consume
+part of them). Explicitly NOT a full NER/localization system — a
+stated v1 scope boundary, not a hidden gap. Protect-then-restore is
+verified round-trip-exact when untouched, and `restore()` reports
+`all_present=False` (not a silent pass) when a backend drops a
+placeholder token — wired into the service's quality gates as
+`PLACEHOLDER_MISMATCH`.
+
+**Long-input policy (point 11):** `UnitSplitter`
+(`core/translation/splitting.py`) never truncates — either produces
+ordered segments (sentence-boundary regex including Devanagari/Indic
+`।`) that reassemble to the full input, or returns `None`, which the
+service converts to a structured `UNIT_SPLIT_FAILED`, never a
+silent content loss. The character-count threshold is an explicitly
+documented APPROXIMATION of a real token limit (character-to-subword-
+token ratio varies by script/tokenizer) — `IndicTrans2Backend`'s own
+`GENERATION_MAX_LENGTH = 256` (confirmed via WebFetch against the
+official example code) is the real limit for that specific backend;
+wiring the splitter to that exact value per-backend is a follow-up,
+not done in this milestone (the default 800-character threshold is a
+conservative stand-in).
+
+**Batching (point 10):** `TranslationService.translate_units()` sends
+every segment of every unit in ONE `translate_batch()` call
+(`test_batching_sends_all_segments_in_one_backend_call` confirms exactly
+one call regardless of unit count), and always returns results in the
+same order as the input units list — guaranteed by construction (a
+single `for unit in units:` loop appending exactly one result per
+iteration), not by a separate reordering step that could itself have a
+bug.
+
+**Quality gates (point 13):** non-empty output, placeholder
+preservation, no stray control characters — checked in
+`TranslationService._apply_quality_gates`. Explicitly NOT semantic
+quality scoring (out of scope, point 21 forbids it this milestone).
+
+**Determinism (point 14):** `MockTranslationBackend` is fully
+deterministic by construction (a lookup table). `IndicTrans2Backend`'s
+official generation call sets no sampling parameters (`num_beams=5`,
+no temperature/top-k/top-p) — beam search decoding is deterministic
+given fixed weights and eval-mode dropout disabled, per direct
+inspection of the official `example.py`. This is stated as "should be
+deterministic based on the documented API," NOT verified by an actual
+repeated-run comparison, since no live run was possible this
+milestone (see the feasibility gate below) — the distinction is
+recorded honestly rather than claimed as confirmed.
+
+**Feasibility gate result** (`docs/research/indictrans2-feasibility.md`):
+native Windows unsupported (official IndicTransToolkit statement,
+not attempted); WSL Ubuntu present with adequate hardware (8 cores,
+7.6 GiB RAM, 950 GB disk) but this session could not provision `pip`/
+`python3-venv` non-interactively (no passwordless `sudo`) — an
+environment-ACCESS blocker, not a package-compatibility finding. The
+live translation-quality experiment (point 8, all 5 target language
+pairs) was **not run** — the adapter is code-complete and interface-
+tested (`test_translation_indictrans2_backend.py`, capability-gated
+via `pytest.mark.skipif`) but unexercised against a real model. This
+is the one Definition-of-Done item (#10, "language pairs
+experimentally exercised where the environment supports it") not
+fully met, and is recorded as an open item, not silently marked done.
+
+**Alternatives:** forcing the Windows install anyway (rejected —
+directly contradicted by the official platform statement, and the
+milestone explicitly forbids this); building a from-scratch tokenizer/
+preprocessing pipeline to sidestep `IndicTransToolkit` (rejected — the
+milestone explicitly forbids reimplementing the official preprocessing
+path); skipping the mock backend and only building the real adapter
+(rejected — would have made the entire test suite depend on an
+uninstallable dependency on this machine, violating point 20 directly).
+
+**Risks:** live IndicTrans2 behavior — actual translation quality, real
+CPU inference latency, real memory footprint — remains entirely
+unverified on this project's hardware. The 256-token generation cap
+is confirmed from official source but its practical interaction with
+this project's ~800-character `UnitSplitter` default has not been
+tested end-to-end with the real tokenizer. Model licensing (as
+distinct from `IndicTransToolkit`'s MIT package license) was not
+independently re-verified in this pass.
+
+**Future replacement path:** once environment access is unblocked (see
+the feasibility doc's "what would unblock" section), run
+`IndicTrans2Backend` against the benchmark fixture (point 8) with zero
+code changes anticipated — the adapter was written and interface-
+tested specifically so that installing its three dependencies is the
+only remaining step.

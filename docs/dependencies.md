@@ -24,6 +24,24 @@ implementation is wired up) — per that milestone's point 9D, no OCR
 dependency (e.g. `pytesseract`, already logged as a FUTURE dependency
 above) was added just to fill it in.
 
+**Milestone 5 (Translation Engine Integration, 2026-09-08): no new
+dependencies actually INSTALLED.** `core/translation/` (backend
+abstraction, language registry, mock backend, unit builder, protected
+entities, splitting, service orchestration, pipeline bridge) runs
+entirely on `pymupdf`/`pydantic` already present. The IndicTrans2
+adapter (`core/translation/indictrans2_backend.py`) is fully written
+against `torch`/`transformers`/`IndicTransToolkit` (see their entries
+below for exact version constraints, verified via WebFetch against
+official sources) but none of the three were installed — the official
+IndicTransToolkit README states it's not built/tested for Windows, and
+this session's available WSL Linux environment lacked `pip`
+provisioning access to attempt the install (see
+`docs/research/indictrans2-feasibility.md`). The adapter module
+imports these packages lazily and raises a structured
+`TranslationBackendUnavailableError` if they're absent, so nothing
+elsewhere in the application or test suite depends on them being
+installed.
+
 ---
 
 ## CURRENT (installed, Milestone 1)
@@ -175,39 +193,86 @@ see the `fonts/` directory in the master plan's Section 52 structure.
 - Risk: exact bbox schema (`docling-core`) UNVERIFIED in this research
   pass — inspect directly before integrating.
 
-### IndicTrans2 (+ CTranslate2)
+### IndicTrans2 (+ CTranslate2) — NOT INSTALLED (adapter code-complete, feasibility-gated)
 - Purpose: primary Indic-language translation engine.
-- License: see `docs/research/indictrans2.md` (confirmed via official
-  repo/model cards).
+- Model identifiers (verified via WebFetch against the official README,
+  2026-09-08): distilled `ai4bharat/indictrans2-en-indic-dist-200M` /
+  `ai4bharat/indictrans2-indic-en-dist-200M` (chosen for CPU
+  feasibility over the base `-1B` variants).
+- **Model license is separate from package license** — HuggingFace
+  model card licensing was not re-verified in this pass beyond
+  Milestone 1's research; treat as unconfirmed until checked directly
+  against the model card before any distribution decision.
 - Official URL: https://github.com/AI4Bharat/IndicTrans2
 - Why required: CLAUDE.md's translation rule; purpose-built for Indic
   languages with published per-language benchmarks.
-- Milestone introduced: 5 (Translation Provider), pending Experiment 6
-  (Windows/WSL2 feasibility).
+- Milestone introduced: 5 (Translation Engine Integration) — adapter
+  (`core/translation/indictrans2_backend.py`) is written, isolated,
+  and interface-tested, but NOT installed or run against a real model.
+  See `docs/research/indictrans2-feasibility.md` for the full gate:
+  Windows-native unsupported (confirmed), WSL hardware-feasible but
+  blocked in this session by missing `pip`/`sudo` access, not by any
+  IndicTrans2/PyTorch incompatibility.
 - Alternative: Google Cloud Translation (cloud, costs money), Argos
   Translate (offline, lower quality), Gemini API (contextual only).
 - Risk: **non-uniform quality** — Hindi outperforms Telugu/Tamil/Kannada
   per official benchmark paper (via secondary source, flagged for
-  re-verification). CPU/RAM requirements not officially documented —
-  needs Experiment 3/4 benchmarking on real hardware.
+  re-verification). CPU/RAM requirements not officially documented;
+  distilled 200M model is expected CPU-feasible on this project's WSL
+  hardware (8 cores/7.6GB RAM) but UNMEASURED — no live run completed.
 
-### IndicTransToolkit
+### torch — NOT INSTALLED (required by the IndicTrans2 adapter, not installed)
+- Purpose: model inference runtime for `IndicTrans2Backend`.
+- Version constraint: `>=2.5` (IndicTransToolkit's own stated minimum,
+  verified via WebFetch, 2026-09-08).
+- License: BSD-3-Clause (PyTorch's standard license — not re-verified
+  in this pass, matches well-known public information; verify directly
+  before install if this becomes load-bearing).
+- Official URL: https://pytorch.org/, install via
+  `https://download.pytorch.org/whl/cpu` for the CPU-only build (no
+  CUDA GPU on this project's dev machine — see feasibility doc).
+- Milestone introduced: 5, not installed — gated behind the same
+  feasibility blocker as IndicTrans2 itself.
+
+### transformers — NOT INSTALLED
+- Purpose: `AutoModelForSeq2SeqLM`/`AutoTokenizer` used by the
+  IndicTrans2 adapter, per the official inference example.
+- Version constraint: `>=4.51` (IndicTransToolkit's stated minimum,
+  verified via WebFetch, 2026-09-08).
+- License: Apache-2.0 (HuggingFace `transformers`, well-known; not
+  re-verified in this pass).
+- Official URL: https://github.com/huggingface/transformers
+- Milestone introduced: 5, not installed — same gate.
+
+### IndicTransToolkit — NOT INSTALLED
 - Purpose: required preprocessing/tokenizer wrapper for IndicTrans2's
-  HuggingFace inference path.
-- Version: 1.1.1 (PyPI)
+  HuggingFace inference path (`IndicProcessor.preprocess_batch`/
+  `postprocess_batch`).
+- Version constraint: `numpy>=2.1` also required alongside it (all
+  three constraints verified together via WebFetch against the
+  official README, 2026-09-08).
+- Install: `pip install indictranstoolkit`
 - License: MIT
 - Official URL: https://github.com/VarunGumma/IndicTransToolkit
   (**not** an official AI4Bharat repo — community-maintained, but
-  directly used by AI4Bharat's own official example code)
+  directly used by AI4Bharat's own official example code, which
+  installs it automatically via `install.sh`)
 - Why required: AI4Bharat's own `example.py` imports `IndicProcessor`
-  from it directly.
-- Milestone introduced: 5, pending Experiment 6.
+  from it directly — this project's adapter uses that same official
+  import path (`from IndicTransToolkit.processor import IndicProcessor`),
+  not a reimplementation.
+- Milestone introduced: 5 — NOT installed. Confirmed blocker: its own
+  README states explicitly "not meant/built/tested for Windows".
+  `core/translation/indictrans2_backend.py` is written against it but
+  gated behind `is_available()`/`TranslationBackendUnavailableError` so
+  its absence never breaks the rest of the application or test suite.
 - Alternative: the separate fairseq inference path (avoids this
-  dependency, less-documented/less-common).
+  dependency, less-documented/less-common — not pursued).
 - Risk: **explicitly not built/tested for Windows** per its own
-  README — this project's dev environment is Windows. Needs
-  Experiment 6 (WSL2/Docker feasibility) before committing to this
-  path as anything more than optional/advanced.
+  README. WSL is a genuinely supported environment per that same
+  statement, but this session could not provision `pip` there (see
+  feasibility doc) — this is an access blocker, not a compatibility
+  finding against the package itself.
 
 ### Ollama + Qwen3
 - Purpose: contextual reasoning — translation review, terminology
