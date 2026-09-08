@@ -6,9 +6,99 @@ giant prompt" — see CLAUDE.md's development protocol.
 
 ## Current milestone
 
-**Milestone 2 — Document Model: DONE (2026-09-08).**
+**Milestone 3 — Automatic Text-Fit Engine: DONE (2026-09-08).**
 
 ### Completed components
+
+- `core/layout/models.py` — `TextFitRequest` (source id, target text,
+  language/script, available rect + `safety_inset`, style, font
+  family/file, initial/min font size, line-height/alignment policy,
+  overflow tolerance, horizontal-scaling/geometry-expansion flags,
+  page bounds, obstacle rects, rendering mode, numeral-fallback flag,
+  font-size search step), `TextFitResult` (status, final font
+  size/rect, scale, spare height, line-count estimate, overflow,
+  attempted font sizes, geometry decision, digit-fallback flag,
+  rendered text, reason), `FitStatus` taxonomy (`FIT`,
+  `FIT_AFTER_GEOMETRY_TOLERANCE`, `FIT_AFTER_FONT_REDUCTION`,
+  `FIT_AFTER_BOTH`, `NO_FIT_MIN_FONT_SIZE`, `INVALID_GEOMETRY`,
+  `MISSING_FONT`, `RENDER_ERROR`), `ScriptCategory` (LATIN/INDIC/MIXED/
+  OTHER), `GeometryDecision`.
+- `core/layout/measurer.py` — `TextMeasurer`: measures fit by actually
+  calling `insert_htmlbox` on a throwaway, never-persisted
+  `pymupdf.Document` (per Decision 13 — no analytical formula was
+  trusted, since Milestone 2 already showed `Font.text_length()`
+  diverges from real `insert_htmlbox` layout for Indic text). Also
+  provides `measure_required_height()`, a diagnostic-only probe used
+  for overflow/line-count reporting on failure, never for the pass/fail
+  decision itself.
+- `core/layout/engine.py` — `TextFitEngine.fit()`: the deterministic
+  decision tree (original geometry → controlled geometry tolerance →
+  binary-search font reduction, fixed 20-iteration cap → structured
+  `NO_FIT_MIN_FONT_SIZE`). Forces `allow_horizontal_scaling=False` for
+  `ScriptCategory.INDIC` regardless of the request. Never mutates its
+  input request/style. `TextRenderer` in the brief's
+  Measurer/Engine/Renderer split is the EXISTING `core/pdf/renderer.py`
+  `LayoutRenderer` — reused, not reinvented (see that file's updated
+  docstring).
+- `core/layout/numerals.py` — `apply_native_digit_fallback()`: the
+  Milestone-2 native-Indic-digit rendering bug (Telugu/Tamil/Kannada,
+  not Devanagari) modeled explicitly as a renderer-compatibility
+  fallback applied ONLY to an internal rendering-time text copy —
+  `TextFitRequest.text` (the actual translation) is never touched, and
+  `TextFitResult.native_digit_fallback_applied`/`rendered_text` make
+  the substitution visible to callers rather than silent.
+- `tests/fixtures/fit_cases.py` — the dedicated fit fixture (point J):
+  15 structured cases spanning English/Telugu/Hindi/Tamil/Kannada,
+  mixed-script, short/long strings, an unbreakable long word,
+  punctuation, Western and native-script numbers, tight/roomy/
+  deliberately-impossible rects.
+- 36 new tests (`test_layout_numerals.py`, `test_layout_measurer.py`,
+  `test_layout_engine.py`) covering all 16 cases point I asks for plus
+  the `safety_inset` geometry concept — 68 tests passing total.
+
+### Experimentally observed behavior (not claimed, measured)
+
+- Fit-engine cost across the 15 fixture cases: **339ms total, 22.6ms/
+  block average** (range ~6.5ms single-attempt fit to ~43ms an
+  8-attempt binary search) — see `docs/research/EXPERIMENTS.md` #10.
+  Acceptable for a local Streamlit app at the scale tested; whole-document
+  scale (hundreds of blocks) not yet tested.
+- Binary search converges within its 20-iteration cap on every fixture
+  case tested (typically 6-8 attempts to converge from an 18pt→6pt
+  range at a 0.5pt step) — never needed the full cap in this pass.
+
+### Remaining components / open questions (explicitly not resolved here)
+
+- **Monotonicity assumption unverified at scale** (`docs/research/EXPERIMENTS.md`
+  #8): the binary search assumes a smaller font size always fits if a
+  larger one does. True in general, not exhaustively proven across
+  every wrapping edge case.
+- **Geometry-expansion policy is deliberately conservative**
+  (`docs/research/EXPERIMENTS.md` #9): abandons expansion entirely if
+  it would touch ANY known obstacle, rather than trying a smarter
+  partial/directional expansion. Safe (never damages a document) but
+  may decline fits a smarter policy could achieve — left conservative
+  on purpose per CLAUDE.md's "minimal change" rule, not because a
+  better policy is impossible.
+- **Whole-document application not built** — this milestone fits ONE
+  block/span per `TextFitEngine.fit()` call; a pipeline that plans
+  every block on a page/document, applies all edits, and only then
+  re-extracts (per known limitation #2 below) is Milestone 4 territory.
+- **No new dependencies were needed** — `pymupdf`/`pydantic` already
+  covered everything; `docs/dependencies.md` unchanged this milestone.
+
+**Next: Milestone 4 — whole-document redact/reinsert using the
+text-fit engine's plans**, informed by Experiments #8/#9/#10 above and
+Milestone 2's known limitation #2 (extract once, plan everything, edit
+in one pass, don't interleave extract/edit/re-extract).
+
+---
+
+## Previous milestones
+
+### Milestone 2 — Document Model: DONE (2026-09-08).
+
+#### Completed components
 
 - `core/geometry.py` — `PdfRect`/`PdfQuad`: real `pymupdf.Rect`/`Quad`
   objects held in memory, fully JSON-serializable via pydantic
@@ -52,19 +142,20 @@ giant prompt" — see CLAUDE.md's development protocol.
 - `app.py` updated to the new nested model shape (blocks/lines/spans
   instead of a flat `text_objects` list).
 
-### Remaining components (explicitly NOT done — future milestones)
+#### Remaining components (explicitly NOT done — future milestones)
 
 - Whole-document redact/reinsert pipeline (only a single controlled
   block was proven, per instructions — Milestone 3/4 territory).
-- Automatic text-fit engine (font-size search, wrapping) — the redact/
-  reinsert proof needed a permissive `scale_low` to succeed at all,
-  which IS Milestone 3's job to calibrate properly, not Milestone 2's.
+- Automatic text-fit engine (font-size search, wrapping) — **now DONE,
+  see Milestone 3 above** — the redact/reinsert proof needed a
+  permissive `scale_low` to succeed at all, which was Milestone 3's
+  job to calibrate properly, not Milestone 2's.
 - Table extraction (`Table`/`TableCell` are placeholder structures with
   no populated rows/cols yet, as instructed).
 - Any translation logic — `TranslatedSpan` exists as a model/interface
   target only; no translation engine is wired up.
 
-### Known limitations discovered during implementation
+#### Known limitations discovered during implementation
 
 1. **`insert_htmlbox` corrupts the PDF's text layer (ToUnicode),
    even though it renders visually correctly.** Discovered while
@@ -102,13 +193,10 @@ giant prompt" — see CLAUDE.md's development protocol.
    calibrate this properly (padding, line-height assumptions) rather
    than relying on shrinkage as the default behavior.
 
-**Rendering proof-of-concept (prerequisite for this milestone):
+**Rendering proof-of-concept (prerequisite for Milestone 2):
 DONE (2026-09-08), result GO** — see `docs/research/indic-rendering-proof.md`
 and the "Full technical research pass" section below. Not repeated
-here.
-
-**Next: Milestone 3 — Automatic Text-Fit Engine** (master plan Section
-44), informed directly by known limitation #3 above.
+here. Milestone 3 (above) directly addressed known limitation #3.
 
 ## Full technical research pass: DONE (2026-09-08)
 
@@ -160,14 +248,19 @@ to its first task as possible, not defer it.
 Note: this session's "Milestone 2" (Document Model) is a superset of
 master plan Section 53's M2 groundwork — it built the full normalized
 model/extraction/serialization layer plus a single-block redact/
-reinsert proof, rather than only "exact text replacement." Whole-
-document replacement is deferred to M3/M4 below.
+reinsert proof, rather than only "exact text replacement." This
+session's "Milestone 3" built the deterministic text-fit engine but
+NOT its whole-document application — that remains M4 below.
 
 1. ✅ PDF Forensics (`PDF → inspect → JSON`)
 2. ✅ Document Model + single-block redact/reinsert proof (this session)
-3. ⬜ Automatic text-fit engine (shrink → wrap → warn) + whole-document
-   redact/reinsert using the proven single-block pattern
-4. ⬜ Language detection
+3. ✅ Automatic text-fit engine (geometry tolerance → binary-search
+   font reduction → structured NO_FIT; this session) — whole-document
+   application deferred to M4
+4. ⬜ Whole-document redact/reinsert pipeline, applying the text-fit
+   engine's plans across every block on a page (extract once, plan
+   everything, edit in one pass — per Milestone 2's known limitation #2)
+4b. ⬜ Language detection
 5. ⬜ Translation provider integration
 6. ⬜ Context-aware (paragraph-level) translation
 7. ⬜ OCR for scanned PDFs
@@ -190,10 +283,17 @@ document replacement is deferred to M3/M4 below.
   document-parsing, indictrans2, indictrans-toolkit,
   translation-architecture, qwen3-ollama, pdf-typography,
   layout-fitting, visual-qa, streamlit), plus
-  `ARCHITECTURE_DECISIONS.md` (12 synthesized decisions),
-  `SOURCES.md` (aggregated citations), and `EXPERIMENTS.md` (7
-  empirical validations still needed — read before assuming a
-  research finding is final).
+  `ARCHITECTURE_DECISIONS.md` (13 synthesized decisions, updated as
+  implementation surfaces new findings), `SOURCES.md` (aggregated
+  citations), and `EXPERIMENTS.md` (10 empirical validations, several
+  still open — read before assuming a research finding is final).
+  Also `indic-rendering-proof.md` (Milestone 2 rendering
+  proof-of-concept) and `assets/` (rendered evidence PNGs/PDFs for
+  both the rendering proof and the redact/reinsert proof).
+- `core/layout/` — Milestone 3's text-fit engine (`models.py`,
+  `measurer.py`, `engine.py`, `numerals.py`). `core/pdf/renderer.py`'s
+  `LayoutRenderer` is the "TextRenderer" this connects to, not a
+  separate module.
 
 ## Custom skills installed
 

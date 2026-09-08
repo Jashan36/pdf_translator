@@ -13,6 +13,17 @@ Rendering path is fixed by experiment, not left open-ended: per
 this project for any Indic-script content — the classic
 `insert_text`/`insert_textbox` are not shaping-capable and must not be
 used for that purpose. This module only ever calls `insert_htmlbox`.
+
+Milestone 3 note: this `LayoutRenderer` IS the "TextRenderer" in the
+TextMeasurer / TextFitEngine / TextRenderer separation that milestone
+calls for (`core/layout/measurer.py`, `core/layout/engine.py`) — it
+was not reinvented, since it already exists and already does exactly
+the "final PDF mutation" job that separation asks to keep decoupled
+from measurement/fitting. `TextFitEngine.fit()` produces a plan
+(`TextFitResult`: font size + rect to use); a caller executes that
+plan by constructing a `TranslatedSpan` and calling
+`render_translated_block()` here — the two are connected by a plan
+object, never by direct coupling.
 """
 
 from __future__ import annotations

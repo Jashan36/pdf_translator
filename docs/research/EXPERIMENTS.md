@@ -319,3 +319,123 @@ poorly-performing engine.
 
 **Milestone:** 7 (OCR), only if Malayalam support is actually required
 by the user at that point.
+
+---
+
+## 8. Does the text-fit binary search's monotonicity assumption ever break?
+
+Raised by Decision 13 (Milestone 3). The engine's binary search assumes
+"a font size that fits also fits at any smaller size" — true in the
+general case, not proven exhaustively.
+
+**Why documentation is insufficient:** This is an assumption about
+`insert_htmlbox`'s own wrapping/layout behavior across arbitrary text,
+which no PyMuPDF documentation makes a formal guarantee about either
+way.
+
+**Experiment:** Across a large sample of real translated text
+(once translation exists, Milestone 5+) and the fixture cases in
+`tests/fixtures/fit_cases.py`, run the fit engine at every font size in
+a fine-grained sweep (not just the binary-search path) and check for
+any case where a smaller size required MORE height than a larger one
+(would indicate a wrapping-induced monotonicity violation).
+
+**Input:** The existing fit-case fixtures plus real translated content
+once available.
+
+**Expected observation:** No violations (supporting the current
+assumption) or a specific, reproducible counter-example.
+
+**Metric:** Count of monotonicity violations found, if any.
+
+**Decision threshold:** If a violation is found, the engine's binary
+search needs a monotonicity-safe fallback (e.g. verify the final
+chosen size directly rather than trusting the search path, which the
+engine already does as a safety net — see `engine.py`'s
+"re-confirm after snapping" step — but a systematic violation would
+mean the search could miss a better-fitting larger size, not just
+report a wrong one).
+
+**Milestone:** Before Milestone 4 (whole-document application of this
+engine) treats the assumption as safe at scale.
+
+---
+
+## 9. Is the "abandon expansion entirely on any obstacle contact" geometry policy too conservative?
+
+Raised by Decision 13 (Milestone 3). The current policy declines an
+expansion completely if the grown rect would touch ANY known obstacle,
+even if a smaller/differently-shaped expansion (e.g. only rightward,
+not downward) would avoid it.
+
+**Why documentation is insufficient:** This is a project-specific
+policy choice, not a library behavior to verify against docs.
+
+**Experiment:** On real multi-block pages (the golden fixture, and
+real translated documents once available), measure how often
+expansion is abandoned due to an obstacle vs. how often a smarter
+directional/partial expansion could have succeeded instead.
+
+**Input:** Pages with tightly-packed blocks/images near translated
+text blocks.
+
+**Expected observation:** A rate of "unnecessarily abandoned"
+expansions.
+
+**Metric:** Percentage of NO_FIT/FIT_AFTER_FONT_REDUCTION outcomes
+that could have instead been FIT_AFTER_GEOMETRY_TOLERANCE with a
+smarter policy.
+
+**Decision threshold:** If this rate is high enough to noticeably hurt
+output quality, implement directional expansion (grow only away from
+the nearest obstacle) as a Milestone 4+ refinement — not now, since
+the current conservative policy is safe (never damages a document) and
+untested-but-plausible is not sufficient justification to add
+complexity yet (CLAUDE.md's "minimal change" development-protocol rule).
+
+**Milestone:** 4 (whole-document redact/reinsert pipeline), if profiling
+against real documents shows this matters.
+
+---
+
+## 10. What is the per-block measurement cost of the fit engine at whole-document scale?
+
+Raised by Decision 13. Each `TextFitEngine.fit()` call opens/closes at
+least 2, up to ~20+2, throwaway `pymupdf.Document` instances (one per
+attempted font size, plus the diagnostic height probe on failure).
+
+**Why documentation is insufficient:** This is a performance question
+about this project's own usage pattern, not something PyMuPDF's docs
+address.
+
+**Experiment:** Run the fit engine across every text block in a
+representative multi-page document (e.g. the golden fixture repeated
+across many pages, or a real translated document once available) and
+measure wall-clock time per block and per document.
+
+**Input:** A multi-page, many-block document.
+
+**Expected observation:** A total time budget acceptable for a local
+Streamlit app's interactive use (per master plan Section 33's
+"family/local, not enterprise-scale" framing).
+
+**Metric:** Milliseconds per block, total seconds per document.
+
+**Decision threshold:** If unacceptably slow, consider the caching or
+analytical-prefilter options noted in Decision 13's "future
+replacement path" — but only once profiling shows an actual need.
+
+**Milestone:** 4, before whole-document application at scale.
+
+**Partial result (2026-09-08, this session):** Ran the 15
+`tests/fixtures/fit_cases.py` cases (a realistic mix of fit-on-first-try
+and worst-case-8-attempts blocks) through the real `TextFitEngine`.
+Total: 339ms for 15 blocks, average 22.6ms/block (range: ~6.5ms for a
+single-attempt fit, ~43ms for an 8-attempt binary-search case). This
+is real measured data, not an estimate — a 50-block document would be
+on the order of ~1 second of fit-engine work, well within acceptable
+range for a local Streamlit app per master plan Section 33's framing.
+Not yet tested: a genuinely large multi-page document (hundreds of
+blocks), or whether repeated `pymupdf.open()`/`close()` calls (one per
+measurement) show any cumulative slowdown over thousands of calls in
+one process — that remains open for Milestone 4.

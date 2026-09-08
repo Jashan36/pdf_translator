@@ -8,6 +8,12 @@ research in `docs/research/` — see `docs/research/ARCHITECTURE_DECISIONS.md`
 for the reasoning behind each. Do NOT install FUTURE/OPTIONAL entries
 merely because they're researched here.
 
+**Milestone 3 (Automatic Text-Fit Engine, 2026-09-08): no new
+dependencies.** The text-fit engine (`core/layout/`) is built entirely
+on `pymupdf` and `pydantic`, both already CURRENT — no IndicTrans2/
+Qwen/Ollama/PaddleOCR or other dependency was needed, per that
+milestone's explicit stop condition.
+
 ---
 
 ## CURRENT (installed, Milestone 1)

@@ -524,6 +524,64 @@ than changing the staging principle itself.
 
 ---
 
+## 13. Text-fit measurement strategy (Milestone 3)
+
+**Decision:** Measure fit by actually calling `insert_htmlbox` on a
+throwaway, never-persisted `pymupdf.Document` (`core/layout/measurer.py`'s
+`TextMeasurer`) rather than building an analytical width/height
+formula. The fit algorithm itself (`core/layout/engine.py`'s
+`TextFitEngine`) is a deterministic decision tree — original geometry
+→ controlled geometry tolerance → binary-search font reduction → structured
+failure — built entirely on top of that measurement primitive.
+
+**Evidence:** Decision 7/8's own findings rule out an analytical
+shortcut: `Font.text_length()` (naive glyph-advance width) does not
+reliably predict `insert_htmlbox`'s actual HarfBuzz-shaped layout for
+Indic text, and `insert_htmlbox`'s line-box model is measurably
+different from PyMuPDF's own extracted-bbox tightness (confirmed twice
+now — once in the rendering proof, again while building Milestone 2's
+redact/reinsert proof, which needed `scale_low=0.3` to succeed at all).
+Building a parallel measurement formula would risk silently diverging
+from the one rendering path this project actually uses.
+
+**Alternatives:** An analytical formula using font metrics
+(`Font.text_length`, ascender/descender ratios) — rejected precisely
+because it's the thing already shown to diverge from real
+`insert_htmlbox` output for Indic text.
+
+**Why selected:** Measurement and the real render path can never
+disagree, because they're the same call. The cost is one extra
+`insert_htmlbox` invocation per attempted font size (bounded to at
+most ~20 by the engine's fixed iteration cap) — negligible for a
+single block, not yet benchmarked for whole-document throughput (see
+`docs/research/EXPERIMENTS.md`).
+
+**Why alternatives rejected:** An analytical model would need its own
+validation against `insert_htmlbox` anyway to be trustworthy, at which
+point it's strictly more work than just using `insert_htmlbox` as the
+measurement oracle directly.
+
+**Risks:** (a) The binary search assumes standard text-fit
+monotonicity — a font size that fits also fits at any smaller size.
+True in the general case (less text-width/height is needed as font
+size shrinks) but not proven exhaustively across every script/wrapping
+edge case in this pass; a pathological case where shrinking changes
+word-wrap points in a way that *increases* required height has not
+been ruled out. (b) The geometry-expansion "abandon entirely if it
+would touch any known obstacle" policy is deliberately conservative —
+it will decline expansions a smarter packer could actually make work
+(e.g. expanding only on the side away from the obstacle). Both are
+tracked in `docs/research/EXPERIMENTS.md`, not silently assumed solved.
+
+**Future replacement path:** If per-block measurement cost becomes a
+real bottleneck at whole-document scale (Milestone 4+), consider
+caching measurements for identical (text, font, size, width) tuples,
+or a validated analytical pre-filter that only calls `insert_htmlbox`
+near the actual fit boundary — but only after profiling shows it's
+needed, not preemptively.
+
+---
+
 ## Summary of changes to `PROJECT_STATE.md`
 
 1. **Translation provider decision** now carries two concrete
