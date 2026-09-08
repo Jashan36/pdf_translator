@@ -326,6 +326,40 @@ real-world convention for this content type) rather than native-script
 digit codepoints — no architecture change, no new dependency, no
 rendering-library switch required.
 
+**UPDATE (Milestone 2 implementation) — new finding, not covered by
+the original rendering proof:** the rendering proof validated *visual*
+shaping correctness only (does the glyph sequence look right when
+rendered to an image). Building the Milestone 2 golden test fixture
+surfaced a second, independent property that must also be verified:
+**does the resulting PDF's text LAYER correctly round-trip back to the
+original Unicode string via `page.get_text()`?** For `insert_htmlbox`,
+the answer is **no** — direct testing (inserting a Telugu string via
+`insert_htmlbox`, saving, reopening, and calling `get_text("text")`)
+produced a corrupted string (one character came back as U+00C8 "È"
+instead of the correct Telugu vowel-sign character), even though the
+same content renders visually correctly as a pixmap. The identical
+string inserted via plain `insert_text()` with a directly-loaded font
+file (`fontfile=...`) round-tripped byte-exact through `get_text()`, so
+this is specific to `insert_htmlbox`'s font subsetting/CMap generation,
+not a general PyMuPDF limitation. This is a real tradeoff, not a
+strict improvement: `insert_text` gives correct extractable text but
+wrong visual shaping for conjuncts; `insert_htmlbox` gives correct
+visual shaping but a corrupted text layer. **Practical consequence:** a
+translated PDF produced via `insert_htmlbox` may look correct but be
+wrong for copy-paste, search, and screen-reader/accessibility
+purposes. This strengthens (does not contradict) Decision 9's
+OCR-based visual-QA bridge check — text-layer-based verification of
+translated content cannot be trusted post-`insert_htmlbox`, so QA must
+rely on rendered-pixel/OCR verification, not `get_text()`, to confirm
+translated content is correct. Also affected the Milestone 2 golden
+test fixture's design: its Indic text blocks are built with
+`insert_text`+`fontfile=` (byte-exact ground truth for extraction
+testing), not `insert_htmlbox` — visual shaping quality was already
+proven separately by the accepted rendering proof, so the fixture
+optimizes for extraction-test correctness instead. Not researched
+further here per explicit instruction not to repeat rendering research
+— tracked as Experiment 1c in `docs/research/EXPERIMENTS.md`.
+
 ---
 
 ## 8. Layout fitting strategy

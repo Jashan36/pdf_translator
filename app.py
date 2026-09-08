@@ -69,52 +69,74 @@ with col_geom:
     st.markdown("**Geometry**")
     st.write(
         {
-            "width": round(page.geometry.width, 2),
-            "height": round(page.geometry.height, 2),
-            "rotation": page.geometry.rotation,
+            "width": round(page.width, 2),
+            "height": round(page.height, 2),
+            "rotation": page.rotation,
         }
     )
 with col_counts:
     st.markdown("**Object counts**")
     st.write(
         {
-            "text_objects": len(page.text_objects),
+            "blocks": len(page.blocks),
+            "text_spans": len(page.source_spans),
             "images": len(page.images),
-            "vectors": len(page.vectors),
+            "drawings": len(page.drawings),
         }
     )
 
-st.markdown("**Text blocks (span-level)**")
-if page.text_objects:
+st.markdown("**Blocks (reading order)**")
+if page.blocks:
     st.dataframe(
         [
             {
-                "order": t.reading_order,
-                "text": t.original_text,
-                "font": t.font.name,
-                "size": round(t.font.size, 1),
-                "bold": t.font.bold,
-                "italic": t.font.italic,
-                "color": f"#{t.font.color:06x}",
-                "bbox": f"({t.bbox.x0:.0f}, {t.bbox.y0:.0f}, {t.bbox.x1:.0f}, {t.bbox.y1:.0f})",
-                "rotation": t.rotation,
+                "order": b.reading_order,
+                "type": b.block_type.value,
+                "text": b.raw_text[:80],
+                "lines": len(b.lines),
+                "bbox": f"({b.bbox.x0:.0f}, {b.bbox.y0:.0f}, {b.bbox.x1:.0f}, {b.bbox.y1:.0f})",
             }
-            for t in page.text_objects
+            for b in page.blocks
+        ],
+        use_container_width=True,
+        height=250,
+    )
+else:
+    st.write("No blocks on this page.")
+
+st.markdown("**Text spans (span-level)**")
+spans = page.source_spans
+if spans:
+    st.dataframe(
+        [
+            {
+                "order": s.source_order,
+                "text": s.text,
+                "font": s.style.font_name,
+                "size": round(s.style.font_size, 1),
+                "bold": s.style.bold,
+                "italic": s.style.italic,
+                "color": f"#{s.style.color:06x}",
+                "bbox": f"({s.bbox.x0:.0f}, {s.bbox.y0:.0f}, {s.bbox.x1:.0f}, {s.bbox.y1:.0f})",
+                "rotation": s.rotation,
+            }
+            for s in spans
         ],
         use_container_width=True,
         height=350,
     )
 else:
-    st.write("No extractable text objects on this page.")
+    st.write("No extractable text spans on this page.")
 
 st.markdown("**Images**")
 if page.images:
     st.dataframe(
         [
             {
-                "id": img.id,
+                "id": img.image_id,
                 "bbox": f"({img.bbox.x0:.0f}, {img.bbox.y0:.0f}, {img.bbox.x1:.0f}, {img.bbox.y1:.0f})",
                 "xref": img.xref,
+                "size": f"{img.width}x{img.height}" if img.width else "—",
             }
             for img in page.images
         ],

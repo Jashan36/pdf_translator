@@ -89,6 +89,47 @@ stands indefinitely.
 
 ---
 
+## 1c. Can `insert_htmlbox`'s text-layer (ToUnicode) corruption be fixed or worked around?
+
+Discovered during Milestone 2 implementation (see
+`ARCHITECTURE_DECISIONS.md` Decision 7's Milestone-2 update), not part
+of the original rendering proof, which only checked visual output.
+
+**Why documentation is insufficient:** `insert_htmlbox`'s official
+docs describe its rendering/layout behavior but not the correctness of
+the ToUnicode CMap it generates for the embedded font subset.
+
+**Experiment:** Insert the same Indic string via `insert_htmlbox` and
+via `insert_text`+`fontfile=`, save both, reopen, call
+`page.get_text("text")` on each, and diff against the known-correct
+input string. (Already done once, informally, during Milestone 2 —
+this entry is to formalize a broader per-script/per-length check and
+to investigate whether a documented flag or post-processing step
+(e.g. manually setting `/ToUnicode` on the generated font's xref, or a
+future PyMuPDF option) can fix `insert_htmlbox`'s output rather than
+just working around it.
+
+**Input:** A range of Indic strings per script (short/long,
+conjunct-heavy/simple), inserted via both APIs.
+
+**Expected observation:** Consistent corruption via `insert_htmlbox`
+(already observed once) vs. correct round-trip via `insert_text`.
+
+**Metric:** Percentage of characters/strings that round-trip correctly
+per API per script.
+
+**Decision threshold:** If no fix is found, document this as a
+permanent, accepted limitation of the translated-PDF output (searchable
+text will not always match displayed text for Indic scripts) and rely
+exclusively on rendered-pixel/OCR-based QA (Decision 9) rather than
+text-layer QA for these scripts — do not silently ship this without
+disclosing it as a known limitation (master plan Section 58's
+"controlled fidelity, not impossible universality" principle).
+
+**Milestone:** Before Milestone 9 (Visual QA) is considered complete,
+since it determines whether text-layer QA can be trusted at all for
+Indic-script content.
+
 ## 2. Does `Font.text_length()` accurately predict `insert_htmlbox`'s actual shaped width for Indic text?
 
 **Why documentation is insufficient:** `Font.text_length()` measures
