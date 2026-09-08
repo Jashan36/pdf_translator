@@ -158,3 +158,6 @@ tmp/
 *.pdf
 !tests/fixtures/**/*.pdf
 !docs/research/assets/**/*.pdf
+
+# Claude Code local config/skills — not pushed to the remote
+.claude/
