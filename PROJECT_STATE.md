@@ -22,23 +22,57 @@ Manually-supplied translation (no AI) replacing text in-place while
 keeping the same PDF layout. Purpose: prove the PDF-engineering/
 rendering path works before any translation model touches it.
 
+**Milestone 2 must include, per the research pass below:** using
+`page.add_redact_annot`/`apply_redactions` (not a visual overlay) to
+remove original text, then `page.insert_htmlbox()` — never
+`insert_text`/`insert_textbox` — for reinsertion, with at least one
+Indic-script test case (Noto font) to validate shaping works before
+calling the milestone done (`docs/research/EXPERIMENTS.md` #1).
+
+## Full technical research pass: DONE (2026-09-08)
+
+Ran across 5 parallel research agents; all findings in
+`docs/research/` — see `docs/research/ARCHITECTURE_DECISIONS.md` for
+the 12 synthesized decisions, `docs/research/SOURCES.md` for the
+aggregated source list, and `docs/research/EXPERIMENTS.md` for
+questions that need empirical validation, not just documentation.
+
+**One finding changes the plan materially, not just refines it:**
+PyMuPDF's classic text-insertion APIs (`insert_text`, `insert_textbox`,
+`TextWriter`) **cannot** render Indic scripts correctly — confirmed
+directly by PyMuPDF's own maintainers. All Indic-script text insertion
+must use `page.insert_htmlbox()` (HarfBuzz-backed). Milestone 2 must
+validate this empirically (`docs/research/EXPERIMENTS.md` #1) as close
+to its first task as possible, not defer it.
+
 ## Open decisions (not yet made — do not assume)
 
-- **Translation provider for Milestone 5+**: undecided. Candidates:
-  Google Cloud Translation (doc's recommended first experiment),
-  Argos Translate (offline), IndicTrans2 (best Indic quality,
-  recommended primary per CLAUDE.md once we reach that stage), Gemini
-  API (contextual mode). Do not pick one without asking the user or
-  running the `technical-research` skill first.
-- **OCR backend**: undecided (PaddleOCR is the plan's primary
-  candidate). Not needed until Milestone 7.
-- **Full technical research pass**: not yet run. The user proposed a
-  broad research pass (PyMuPDF, PaddleOCR, IndicTrans2,
-  IndicTransToolkit, Ollama, Qwen3, PDF typography, visual-QA methods,
-  Streamlit) to be written to `docs/research/`. Ask before running
-  this — it's a large task; better to research each dependency when
-  its milestone is actually reached, using the `technical-research`
-  skill, unless the user wants it front-loaded.
+- **Translation provider for Milestone 5+**: still undecided, but now
+  with two concrete blockers to resolve first (not just "pick one"):
+  1. IndicTransToolkit (required for IndicTrans2's practical inference
+     path) is community-maintained, not an official AI4Bharat repo,
+     and explicitly not built/tested for Windows — this dev
+     environment is Windows. Needs `docs/research/EXPERIMENTS.md` #6
+     (WSL2/Docker feasibility check) before committing.
+  2. Translation quality is not uniform across target languages —
+     Hindi (Indo-Aryan) outperforms Telugu/Tamil/Kannada (Dravidian)
+     per IndicTrans2's own benchmark paper. Don't present these as
+     equal-quality to the user once implemented.
+  Candidates remain: IndicTrans2 (primary candidate per CLAUDE.md,
+  now evidence-backed), Google Cloud Translation (cloud fallback, no
+  Windows-compat risk), Argos Translate (offline fallback), Gemini API
+  (contextual mode). Do not pick without running Experiment 6 or
+  asking the user.
+- **OCR backend**: PaddleOCR (PP-OCRv5/v6) confirmed as primary
+  candidate, but with a real gap: it does **not** support Kannada or
+  Malayalam recognition. EasyOCR is needed as a secondary path for
+  Kannada. No engine checked (PaddleOCR, EasyOCR, docTR) confirms
+  Malayalam support — see `docs/research/EXPERIMENTS.md` #7. Not
+  needed until Milestone 7.
+- **Qwen3 model size**: confirmed role (contextual review/QA, not
+  primary translator) but which size (`0.6b`–`235b`) is practical on
+  target hardware is unresolved — needs its own experiment when
+  Milestone 6 begins.
 
 ## Milestone roadmap (master plan Section 53)
 
@@ -61,10 +95,17 @@ rendering path works before any translation model touches it.
   them. Always confirm the merge happened.
 - `.claude/skills/` holds custom project skills (see below) —
   discovered automatically by Claude Code at session start.
-- `docs/dependencies.md` — running log of verified dependencies
-  (created by the `dependency-verification` skill).
-- `docs/research/` — technical research notes, created lazily as
-  needed (see "Open decisions" above), not all up front.
+- `docs/dependencies.md` — running log of verified dependencies,
+  staged CURRENT/NEXT MILESTONE/FUTURE/OPTIONAL.
+- `docs/research/` — full upfront technical research pass (done
+  2026-09-08): per-topic files (pymupdf, pdf-internals, ocr,
+  document-parsing, indictrans2, indictrans-toolkit,
+  translation-architecture, qwen3-ollama, pdf-typography,
+  layout-fitting, visual-qa, streamlit), plus
+  `ARCHITECTURE_DECISIONS.md` (12 synthesized decisions),
+  `SOURCES.md` (aggregated citations), and `EXPERIMENTS.md` (7
+  empirical validations still needed — read before assuming a
+  research finding is final).
 
 ## Custom skills installed
 
