@@ -86,23 +86,37 @@ APIs, already installed. The Milestone 2 experiment plan
 font per target script as a **project asset**, not a pip dependency —
 see the `fonts/` directory in the master plan's Section 52 structure.
 
-### Noto Sans (Telugu / Devanagari / Tamil / Kannada / Malayalam)
+### Noto Sans (Telugu / Devanagari / Tamil / Kannada) — DOWNLOADED, verified
 - Purpose: target-script rendering fonts for `insert_htmlbox`.
-- License: OFL 1.1 (open, embeddable) — confirmed via the official
-  `notofonts` GitHub org LICENSE file.
-- Official URL: https://github.com/notofonts/{telugu,devanagari,tamil,kannada,malayalam}
+- Files (project assets, not pip packages): `fonts/telugu/NotoSans-telugu.ttf`,
+  `fonts/devanagari/NotoSans-devanagari.ttf`, `fonts/tamil/NotoSans-tamil.ttf`,
+  `fonts/kannada/NotoSans-kannada.ttf` — variable TTFs (`[wdth,wght]` axes).
+- License: OFL 1.1 (open, embeddable) — confirmed via the `OFL.txt`
+  file alongside each font in the source repo.
+- Official URL (source used): https://github.com/google/fonts/tree/main/ofl/{notosanstelugu,notosansdevanagari,notosanstamil,notosanskannada}
+  (Google Fonts' mirror of the upstream `notofonts` project releases —
+  same font data, more predictable file paths than per-script release
+  tags on the individual `notofonts/*` repos).
+- Malayalam: not yet downloaded — deferred until Malayalam is
+  prioritized (see OCR section below; no OCR engine covers it either).
 - Why required: Master plan Section 22 — original fonts don't contain
   Indic glyphs; research (`docs/research/pdf-typography.md`) confirms
   these are the correct open-license fallback fonts.
-- Milestone introduced: 2 (needed for the shaping experiment) / 3
-  (needed for real rendering).
+- Milestone introduced: 2 — used in the rendering proof-of-concept
+  (`docs/research/indic-rendering-proof.md`).
 - Alternative: any other OFL/open-licensed font with full Indic
   OpenType tables for the target script — not evaluated, Noto is the
   master plan's own recommendation and is confirmed available.
-- Risk: `insert_htmlbox` "needs a font with correct OpenType tables for
-  the target script, or it can still fragment glyphs" per PyMuPDF's own
-  maintainers — must verify empirically per script (Experiment 1), not
-  assume any Noto variant works out of the box.
+- Risk (confirmed via experiment, not just documentation): all four
+  fonts correctly shape conjuncts/reordering/wrapping/mixed-script text
+  via `insert_htmlbox`. One narrow issue found: native-script digit
+  codepoints (Telugu/Tamil/Kannada, not Devanagari) render as wrong
+  glyphs — isolated to a PyMuPDF glyph-selection bug, not the font
+  itself (glyph coverage confirmed correct via `Font.has_glyph`/
+  `unicode_to_glyph_name`). Mitigation: use Western digits for
+  numerals in rendered output (see `indic-rendering-proof.md`).
+- Verified: 2026-09-08 — downloaded, license confirmed, and rendering
+  behavior tested via `scripts/experiments/indic_rendering_proof.py`.
 
 ---
 

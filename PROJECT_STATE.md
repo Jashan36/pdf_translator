@@ -29,6 +29,16 @@ remove original text, then `page.insert_htmlbox()` — never
 Indic-script test case (Noto font) to validate shaping works before
 calling the milestone done (`docs/research/EXPERIMENTS.md` #1).
 
+**Rendering proof-of-concept: DONE (2026-09-08), result GO.** See
+`docs/research/indic-rendering-proof.md`. Hindi PASS; Telugu/Tamil/
+Kannada PASS WITH LIMITATIONS (native-script digit codepoints render
+incorrectly — isolated to a narrow PyMuPDF bug, mitigated by using
+Western digits for numerals; no architecture change). Core shaping
+(conjuncts, vowel reordering, word-wrapping, mixed-script text)
+confirmed correct in all four target languages. **Document Model
+implementation (the rest of Milestone 2) has NOT been started yet** —
+proceeding only on explicit instruction, per this task's scope cap.
+
 ## Full technical research pass: DONE (2026-09-08)
 
 Ran across 5 parallel research agents; all findings in

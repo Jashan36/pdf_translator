@@ -305,6 +305,27 @@ scoped to prove out `insert_htmlbox` specifically for at least one
 Indic script early, not defer this discovery to a later milestone —
 this is now a foundational rendering-path decision, not a detail.
 
+**UPDATE (2026-09-08) — experimentally confirmed, GO:** Ran
+`docs/research/indic-rendering-proof.md`, testing
+`insert_htmlbox` + Noto Sans fonts against Telugu, Hindi, Tamil, and
+Kannada across word/sentence/paragraph/punctuation/numerals/mixed-script
+cases (24 renders total). Result: **PASS** for Hindi, **PASS WITH
+LIMITATIONS** for Telugu/Tamil/Kannada. Core shaping (conjuncts, vowel
+reordering, ligatures, word-boundary wrapping, mixed-script runs) is
+correct in all four languages — the go/no-go question this decision
+raised is answered **yes**. One narrow, fully-isolated bug was found:
+native-script digit codepoints (e.g. Tamil ௧௨௩௪௫) render as wrong
+glyphs in Telugu/Tamil/Kannada (not Devanagari), traced specifically to
+PyMuPDF's glyph-selection step during page-content generation — not
+the font (glyph coverage and `unicode_to_glyph_name` both confirmed
+correct), not shaping/HarfBuzz, not the HTML/CSS layer (reproduces
+identically via plain `insert_text`), not general script shaping
+(everything else in the same scripts rendered correctly). Mitigation:
+render numerals in Western Arabic digits (already the dominant
+real-world convention for this content type) rather than native-script
+digit codepoints — no architecture change, no new dependency, no
+rendering-library switch required.
+
 ---
 
 ## 8. Layout fitting strategy

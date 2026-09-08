@@ -6,7 +6,17 @@ noted, not assumed.
 
 ---
 
-## 1. Does `insert_htmlbox` correctly shape Telugu/Devanagari/Tamil/Kannada text with a Noto font?
+## 1. Does `insert_htmlbox` correctly shape Telugu/Devanagari/Tamil/Kannada text with a Noto font? — DONE (2026-09-08)
+
+**Result: GO.** Full write-up: `docs/research/indic-rendering-proof.md`.
+Hindi: PASS. Telugu/Tamil/Kannada: PASS WITH LIMITATIONS (native-digit
+codepoints render incorrectly — isolated to a narrow PyMuPDF
+glyph-selection bug, not font/shaping/CSS — mitigated by using Western
+digits for numerals, no architecture change needed). Core shaping
+(conjuncts, reordering, wrapping, mixed-script) confirmed correct in
+all four languages.
+
+<details><summary>Original experiment plan (superseded by the result above)</summary>
 
 **Why documentation is insufficient:** PyMuPDF's own maintainers
 confirm `insert_htmlbox` is the only shaping-capable API (Decision 7,
@@ -39,6 +49,43 @@ while others work.
 
 **Milestone:** 2 (Exact Text Replacement) — this should be the first
 thing proven, per Decision 7's "action required" note.
+
+</details>
+
+---
+
+## 1b. Follow-up (optional, not blocking): does a static (non-variable) Noto font fix the native-digit bug?
+
+Raised by Experiment 1's isolation work. Not required to proceed
+(Western-digit mitigation already unblocks Milestone 2), but worth
+tracking if native-script digit output is ever explicitly requested.
+
+**Why documentation is insufficient:** The isolation in
+`docs/research/indic-rendering-proof.md` ruled out font glyph
+coverage, shaping, HTML/CSS, and general script handling — but did not
+test whether the bug is specific to *variable* fonts (all four fonts
+tested were variable TTFs) versus a static instance of the same
+design.
+
+**Experiment:** Render the same native-digit strings using a static
+(single-weight, non-variable) build of Noto Sans Tamil/Telugu/Kannada
+instead of the variable TTF.
+
+**Input:** A static instance of each font (e.g. instantiated via
+fontTools, or a pre-built static release if the notofonts project
+publishes one) + the same digit test strings from Experiment 1.
+
+**Expected observation:** Either the bug disappears (confirming a
+variable-font-specific PyMuPDF parsing issue) or persists (narrowing
+further to something else about these specific fonts/codepoints).
+
+**Metric:** Pass/fail per script.
+
+**Decision threshold:** Only relevant if a user explicitly needs
+native-script digit rendering; otherwise the Western-digit mitigation
+stands indefinitely.
+
+**Milestone:** None scheduled — track as a backlog item.
 
 ---
 

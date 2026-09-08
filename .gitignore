@@ -157,3 +157,4 @@ outputs/
 tmp/
 *.pdf
 !tests/fixtures/**/*.pdf
+!docs/research/assets/**/*.pdf

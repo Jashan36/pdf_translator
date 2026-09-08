@@ -1,0 +1,386 @@
+[
+  {
+    "language": "telugu",
+    "case": "word",
+    "input_text": "నమస్కారం",
+    "rect": [
+      40.0,
+      44.0,
+      555.28,
+      84.0
+    ],
+    "spare_height": 0.0,
+    "scale": 1.0,
+    "clipped": false,
+    "error": null,
+    "png_path": "docs/research/assets/indic-rendering/telugu_word.png"
+  },
+  {
+    "language": "telugu",
+    "case": "sentence",
+    "input_text": "ఇది ఒక పరీక్ష వాక్యం.",
+    "rect": [
+      40.0,
+      114.0,
+      555.28,
+      154.0
+    ],
+    "spare_height": 0.0,
+    "scale": 1.0,
+    "clipped": false,
+    "error": null,
+    "png_path": "docs/research/assets/indic-rendering/telugu_sentence.png"
+  },
+  {
+    "language": "telugu",
+    "case": "paragraph",
+    "input_text": "ఆరోగ్యానికి సమతుల్య ఆహారం అవసరం. ఇది శరీరానికి శక్తిని ఇస్తుంది. పిల్లలకు ఇనుము చాలా ముఖ్యం.",
+    "rect": [
+      40.0,
+      184.0,
+      555.28,
+      274.0
+    ],
+    "spare_height": 19.599998474121094,
+    "scale": 1.0,
+    "clipped": false,
+    "error": null,
+    "png_path": "docs/research/assets/indic-rendering/telugu_paragraph.png"
+  },
+  {
+    "language": "telugu",
+    "case": "punctuation",
+    "input_text": "మీరు బాగున్నారా? అవును, నేను బాగున్నాను! (ధన్యవాదాలు)",
+    "rect": [
+      40.0,
+      304.0,
+      555.28,
+      344.0
+    ],
+    "spare_height": 0.0,
+    "scale": 1.0,
+    "clipped": false,
+    "error": null,
+    "png_path": "docs/research/assets/indic-rendering/telugu_punctuation.png"
+  },
+  {
+    "language": "telugu",
+    "case": "numerals",
+    "input_text": "ఉష్ణోగ్రత 37°C మరియు ధర ₹500. సంఖ్య: ౧౨౩౪౫ (12345)",
+    "rect": [
+      40.0,
+      374.0,
+      555.28,
+      414.0
+    ],
+    "spare_height": 0.0,
+    "scale": 1.0,
+    "clipped": false,
+    "error": null,
+    "png_path": "docs/research/assets/indic-rendering/telugu_numerals.png"
+  },
+  {
+    "language": "telugu",
+    "case": "mixed",
+    "input_text": "COVID-19 మహమ్మారి ప్రపంచాన్ని మార్చింది. WHO మార్గదర్శకాలను జారీ చేసింది.",
+    "rect": [
+      40.0,
+      444.0,
+      555.28,
+      499.0
+    ],
+    "spare_height": 3.799999237060547,
+    "scale": 1.0,
+    "clipped": false,
+    "error": null,
+    "png_path": "docs/research/assets/indic-rendering/telugu_mixed.png"
+  },
+  {
+    "language": "devanagari",
+    "case": "word",
+    "input_text": "नमस्ते",
+    "rect": [
+      40.0,
+      44.0,
+      555.28,
+      84.0
+    ],
+    "spare_height": 0.0,
+    "scale": 1.0,
+    "clipped": false,
+    "error": null,
+    "png_path": "docs/research/assets/indic-rendering/devanagari_word.png"
+  },
+  {
+    "language": "devanagari",
+    "case": "sentence",
+    "input_text": "यह एक परीक्षण वाक्य है।",
+    "rect": [
+      40.0,
+      114.0,
+      555.28,
+      154.0
+    ],
+    "spare_height": 0.0,
+    "scale": 1.0,
+    "clipped": false,
+    "error": null,
+    "png_path": "docs/research/assets/indic-rendering/devanagari_sentence.png"
+  },
+  {
+    "language": "devanagari",
+    "case": "paragraph",
+    "input_text": "स्वास्थ्य के लिए संतुलित आहार आवश्यक है। यह शरीर को ऊर्जा प्रदान करता है। बच्चों के लिए आयरन विशेष रूप से महत्वपूर्ण है।",
+    "rect": [
+      40.0,
+      184.0,
+      555.28,
+      274.0
+    ],
+    "spare_height": 19.599998474121094,
+    "scale": 1.0,
+    "clipped": false,
+    "error": null,
+    "png_path": "docs/research/assets/indic-rendering/devanagari_paragraph.png"
+  },
+  {
+    "language": "devanagari",
+    "case": "punctuation",
+    "input_text": "क्या आप ठीक हैं? हाँ, मैं ठीक हूँ! (धन्यवाद)",
+    "rect": [
+      40.0,
+      304.0,
+      555.28,
+      344.0
+    ],
+    "spare_height": 0.0,
+    "scale": 1.0,
+    "clipped": false,
+    "error": null,
+    "png_path": "docs/research/assets/indic-rendering/devanagari_punctuation.png"
+  },
+  {
+    "language": "devanagari",
+    "case": "numerals",
+    "input_text": "तापमान 37°C और कीमत ₹500 है। संख्या: १२३४५ (12345)",
+    "rect": [
+      40.0,
+      374.0,
+      555.28,
+      414.0
+    ],
+    "spare_height": 0.0,
+    "scale": 1.0,
+    "clipped": false,
+    "error": null,
+    "png_path": "docs/research/assets/indic-rendering/devanagari_numerals.png"
+  },
+  {
+    "language": "devanagari",
+    "case": "mixed",
+    "input_text": "COVID-19 महामारी ने दुनिया को बदल दिया। WHO ने दिशानिर्देश जारी किए।",
+    "rect": [
+      40.0,
+      444.0,
+      555.28,
+      499.0
+    ],
+    "spare_height": 3.799999237060547,
+    "scale": 1.0,
+    "clipped": false,
+    "error": null,
+    "png_path": "docs/research/assets/indic-rendering/devanagari_mixed.png"
+  },
+  {
+    "language": "tamil",
+    "case": "word",
+    "input_text": "வணக்கம்",
+    "rect": [
+      40.0,
+      44.0,
+      555.28,
+      84.0
+    ],
+    "spare_height": 0.0,
+    "scale": 1.0,
+    "clipped": false,
+    "error": null,
+    "png_path": "docs/research/assets/indic-rendering/tamil_word.png"
+  },
+  {
+    "language": "tamil",
+    "case": "sentence",
+    "input_text": "இது ஒரு சோதனை வாக்கியம்.",
+    "rect": [
+      40.0,
+      114.0,
+      555.28,
+      154.0
+    ],
+    "spare_height": 0.0,
+    "scale": 1.0,
+    "clipped": false,
+    "error": null,
+    "png_path": "docs/research/assets/indic-rendering/tamil_sentence.png"
+  },
+  {
+    "language": "tamil",
+    "case": "paragraph",
+    "input_text": "ஆரோக்கியத்திற்கு சமச்சீர் உணவு அவசியம். இது உடலுக்கு ஆற்றலை அளிக்கிறது. குழந்தைகளுக்கு இரும்பு மிகவும் முக்கியம்.",
+    "rect": [
+      40.0,
+      184.0,
+      555.28,
+      274.0
+    ],
+    "spare_height": 0.399993896484375,
+    "scale": 1.0,
+    "clipped": false,
+    "error": null,
+    "png_path": "docs/research/assets/indic-rendering/tamil_paragraph.png"
+  },
+  {
+    "language": "tamil",
+    "case": "punctuation",
+    "input_text": "நீங்கள் நலமா? ஆம், நான் நலமாக இருக்கிறேன்! (நன்றி)",
+    "rect": [
+      40.0,
+      304.0,
+      555.28,
+      344.0
+    ],
+    "spare_height": 0.0,
+    "scale": 1.0,
+    "clipped": false,
+    "error": null,
+    "png_path": "docs/research/assets/indic-rendering/tamil_punctuation.png"
+  },
+  {
+    "language": "tamil",
+    "case": "numerals",
+    "input_text": "வெப்பநிலை 37°C மற்றும் விலை ₹500. எண்: ௧௨௩௪௫ (12345)",
+    "rect": [
+      40.0,
+      374.0,
+      555.28,
+      414.0
+    ],
+    "spare_height": 0.0,
+    "scale": 1.0,
+    "clipped": false,
+    "error": null,
+    "png_path": "docs/research/assets/indic-rendering/tamil_numerals.png"
+  },
+  {
+    "language": "tamil",
+    "case": "mixed",
+    "input_text": "COVID-19 தொற்றுநோய் உலகை மாற்றியது. WHO வழிகாட்டுதல்களை வெளியிட்டது.",
+    "rect": [
+      40.0,
+      444.0,
+      555.28,
+      499.0
+    ],
+    "spare_height": 0.0,
+    "scale": 1.0,
+    "clipped": false,
+    "error": null,
+    "png_path": "docs/research/assets/indic-rendering/tamil_mixed.png"
+  },
+  {
+    "language": "kannada",
+    "case": "word",
+    "input_text": "ನಮಸ್ಕಾರ",
+    "rect": [
+      40.0,
+      44.0,
+      555.28,
+      84.0
+    ],
+    "spare_height": 0.0,
+    "scale": 1.0,
+    "clipped": false,
+    "error": null,
+    "png_path": "docs/research/assets/indic-rendering/kannada_word.png"
+  },
+  {
+    "language": "kannada",
+    "case": "sentence",
+    "input_text": "ಇದು ಒಂದು ಪರೀಕ್ಷಾ ವಾಕ್ಯ.",
+    "rect": [
+      40.0,
+      114.0,
+      555.28,
+      154.0
+    ],
+    "spare_height": 0.0,
+    "scale": 1.0,
+    "clipped": false,
+    "error": null,
+    "png_path": "docs/research/assets/indic-rendering/kannada_sentence.png"
+  },
+  {
+    "language": "kannada",
+    "case": "paragraph",
+    "input_text": "ಆರೋಗ್ಯಕ್ಕೆ ಸಮತೋಲಿತ ಆಹಾರ ಅಗತ್ಯ. ಇದು ದೇಹಕ್ಕೆ ಶಕ್ತಿಯನ್ನು ನೀಡುತ್ತದೆ. ಮಕ್ಕಳಿಗೆ ಕಬ್ಬಿಣ ಬಹಳ ಮುಖ್ಯ.",
+    "rect": [
+      40.0,
+      184.0,
+      555.28,
+      274.0
+    ],
+    "spare_height": 19.599998474121094,
+    "scale": 1.0,
+    "clipped": false,
+    "error": null,
+    "png_path": "docs/research/assets/indic-rendering/kannada_paragraph.png"
+  },
+  {
+    "language": "kannada",
+    "case": "punctuation",
+    "input_text": "ನೀವು ಚೆನ್ನಾಗಿದ್ದೀರಾ? ಹೌದು, ನಾನು ಚೆನ್ನಾಗಿದ್ದೇನೆ! (ಧನ್ಯವಾದಗಳು)",
+    "rect": [
+      40.0,
+      304.0,
+      555.28,
+      344.0
+    ],
+    "spare_height": 0.0,
+    "scale": 1.0,
+    "clipped": false,
+    "error": null,
+    "png_path": "docs/research/assets/indic-rendering/kannada_punctuation.png"
+  },
+  {
+    "language": "kannada",
+    "case": "numerals",
+    "input_text": "ಉಷ್ಣಾಂಶ 37°C ಮತ್ತು ಬೆಲೆ ₹500. ಸಂಖ್ಯೆ: ೧೨೩೪೫ (12345)",
+    "rect": [
+      40.0,
+      374.0,
+      555.28,
+      414.0
+    ],
+    "spare_height": 0.0,
+    "scale": 1.0,
+    "clipped": false,
+    "error": null,
+    "png_path": "docs/research/assets/indic-rendering/kannada_numerals.png"
+  },
+  {
+    "language": "kannada",
+    "case": "mixed",
+    "input_text": "COVID-19 ಸಾಂಕ್ರಾಮಿಕ ಜಗತ್ತನ್ನು ಬದಲಾಯಿಸಿದೆ. WHO ಮಾರ್ಗಸೂಚಿಗಳನ್ನು ಬಿಡುಗಡೆ ಮಾಡಿದೆ.",
+    "rect": [
+      40.0,
+      444.0,
+      555.28,
+      499.0
+    ],
+    "spare_height": 0.0,
+    "scale": 1.0,
+    "clipped": false,
+    "error": null,
+    "png_path": "docs/research/assets/indic-rendering/kannada_mixed.png"
+  }
+]
