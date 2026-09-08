@@ -1,13 +1,16 @@
 """Local PDF Localizer — Streamlit entry point.
 
-Milestone 1 (PDF Forensics): upload a PDF, analyze it with PyMuPDF, and
-show the extracted structure (pages, text blocks, fonts, sizes, colors,
-bounding boxes, images) as both a readable table and raw JSON.
+This UI still only covers Milestone 1's forensics view (upload a PDF,
+analyze it with PyMuPDF, show the extracted structure as a table and
+raw JSON) — see Section 42 / Section 69 of
+local_pdf_localizer_technical_master_plan.md for why this comes first.
 
-No translation happens yet — see Section 42 / Section 69 of
-local_pdf_localizer_technical_master_plan.md for why this comes first:
-we must prove we understand a PDF's visual structure before we attempt
-to translate and reconstruct it.
+Milestones 2-3 (see PROJECT_STATE.md) built the Document Model,
+extraction adapter, serialization, and the automatic text-fit engine
+(`core/models.py`, `core/pdf/extractor.py`, `core/layout/`), but none
+of that is wired into this UI yet — it's backend-only so far. No
+translation UI exists yet either. This file will grow a new view once
+Milestone 4 (whole-document redact/reinsert) lands.
 """
 
 from __future__ import annotations
@@ -23,7 +26,7 @@ from core.pdf.analyzer import analyze_pdf, is_native_text_pdf
 st.set_page_config(page_title="Local PDF Localizer", page_icon="[PDF]", layout="wide")
 
 st.title("Local PDF Localizer")
-st.caption("Milestone 1 — PDF Forensics (analysis only, no translation yet)")
+st.caption("PDF Forensics view (Milestone 1 UI) — no translation UI yet; see PROJECT_STATE.md for backend progress")
 
 uploaded_file = st.file_uploader("Upload PDF", type=["pdf"])
 
