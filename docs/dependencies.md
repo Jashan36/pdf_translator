@@ -14,6 +14,16 @@ on `pymupdf` and `pydantic`, both already CURRENT — no IndicTrans2/
 Qwen/Ollama/PaddleOCR or other dependency was needed, per that
 milestone's explicit stop condition.
 
+**Milestone 4 (Whole-Document Redact/Reinsert Pipeline, 2026-09-08):
+no new dependencies.** `core/pipeline/` is built entirely on
+`pymupdf`/`pydantic` plus Milestones 2-3's own modules
+(`core/models.py`, `core/pdf/extractor.py`, `core/layout/`,
+`core/pdf/renderer.py`). The `DocumentVerifier`'s OCR check is
+deliberately deferred (a clean `OCRVerifier` protocol exists but no
+implementation is wired up) — per that milestone's point 9D, no OCR
+dependency (e.g. `pytesseract`, already logged as a FUTURE dependency
+above) was added just to fill it in.
+
 ---
 
 ## CURRENT (installed, Milestone 1)

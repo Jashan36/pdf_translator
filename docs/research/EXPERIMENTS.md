@@ -439,3 +439,101 @@ Not yet tested: a genuinely large multi-page document (hundreds of
 blocks), or whether repeated `pymupdf.open()`/`close()` calls (one per
 measurement) show any cumulative slowdown over thousands of calls in
 one process — that remains open for Milestone 4.
+
+**Update (Milestone 4, 2026-09-08):** Ran the full whole-document
+pipeline (`TranslationPipeline.run()`) across 5 blocks (Telugu, Hindi,
+Tamil, Kannada, mixed) on the Milestone 4 fixture. Real measured
+totals: 656.6ms end-to-end (131.3ms/block average), broken down as
+planning+fit 365.0ms (73ms/block — higher than Milestone 3's isolated
+22.6ms/block, since these particular translations needed font-
+reduction/expansion searches), validation 0.5ms (negligible — a pure
+in-memory geometry pass), mutation 142.8ms (redaction + reinsertion +
+save for 5 blocks), verification 148.2ms (opens 2-3 PDF handles,
+re-extracts the output document, per-region pixmap renders). For 1
+page / 5 blocks this is well within interactive range for a local app;
+whole-document scale (many pages, dozens+ of blocks) is untested —
+see Experiment 11 below.
+
+---
+
+## 11. Whole-document pipeline performance at real multi-page scale
+
+Raised by Decision 14 (Milestone 4). Only tested at 1 page / 5 blocks
+so far (Experiment 10's update).
+
+**Why documentation is insufficient:** this is entirely this project's
+own usage pattern; no library documents it.
+
+**Experiment:** Run `TranslationPipeline.run()` against a synthetic or
+real multi-page document (tens of pages, dozens to hundreds of
+translatable blocks) and record the same per-stage timings (planning+
+fit, validation, mutation, verification, total).
+
+**Input:** A large multi-page fixture (could extend
+`tests/fixtures/pipeline_multilingual.pdf`'s generator to repeat its
+page N times) with translations supplied for every block.
+
+**Expected observation:** Roughly linear scaling of planning+fit and
+mutation with block count (each block's `insert_htmlbox` measurement/
+render calls are independent); verification cost may scale worse,
+since it currently re-extracts the FULL output document and iterates
+every untouched span/image/drawing on every page even when only a few
+blocks changed.
+
+**Metric:** ms/block and ms/page at increasing document sizes; whether
+verification's share of total time grows disproportionately.
+
+**Decision threshold:** If verification dominates at scale, consider
+narrowing its structural "preserved content" pass to only the pages
+that were actually touched (skip full re-extraction of untouched
+pages entirely) — a targeted optimization, not a redesign, and only
+once this experiment shows it's actually needed (CLAUDE.md's minimal-
+change rule).
+
+**Milestone:** Before Milestone 4's pipeline is used on real,
+non-fixture documents at production scale.
+
+---
+
+## 12. Is the two-layer collision defense (fit-time obstacle avoidance + plan-level validator) sufficient, or does it still miss cases?
+
+Raised by Decision 14. The validator catches collisions the fit
+engine's own obstacle avoidance can't see (independently-planned
+blocks whose FINAL fitted rects overlap even though neither touched
+the other's ORIGINAL position) — but this was only exercised via
+synthetic/injected test plans (`test_pipeline_e2e.py`'s stub-planner
+tests), not via organic multi-block fitting on a real document where
+many blocks are translated at once and genuinely compete for space.
+
+**Why documentation is insufficient:** project-specific emergent
+behavior across many simultaneous fit operations, not a library
+question.
+
+**Experiment:** Translate EVERY block on a densely-packed real page
+(more blocks, less whitespace than the current fixture) with
+`allow_geometry_expansion=True` and a realistic (not deliberately
+extreme) `max_expansion_ratio`, and check how often the validator
+actually catches a genuine emergent collision vs. how often Milestone
+3's fit-time obstacle avoidance alone already prevented it.
+
+**Input:** A densely-packed multi-block fixture.
+
+**Expected observation:** A count of validator-caught collisions on
+realistic (non-synthetic) input.
+
+**Metric:** Collision rate; whether any collision slips past BOTH
+layers (would be a serious finding requiring immediate architecture
+attention, not a backlog item).
+
+**Decision threshold:** If collisions are ever found to slip past both
+layers, that is a Decision-14-invalidating finding and must update
+`ARCHITECTURE_DECISIONS.md` immediately, not be filed as routine
+backlog. If the validator simply never fires on realistic input
+(because fit-time avoidance already prevents everything), that's
+useful confirmation the two-layer design is working as intended, not
+evidence the second layer is unnecessary (it remains defense-in-depth
+against the fit engine's own scope limits, e.g. Experiment 9's
+conservative-expansion policy potentially changing).
+
+**Milestone:** Before Milestone 4's pipeline is trusted on real,
+densely-packed documents.

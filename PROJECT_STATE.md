@@ -6,9 +6,110 @@ giant prompt" — see CLAUDE.md's development protocol.
 
 ## Current milestone
 
-**Milestone 3 — Automatic Text-Fit Engine: DONE (2026-09-08).**
+**Milestone 4 — Whole-Document Redact/Reinsert Pipeline: DONE (2026-09-08).**
 
 ### Completed components
+
+`core/pipeline/`: `models.py` (`WholeDocumentTranslationRequest`,
+`TranslationInput`, `RenderConfig`/`FitConfig`/`MutationConfig`,
+`PlannedTranslation`, `TranslationPlan`, `CollisionIssue`,
+`VerificationCheck`/`VerificationResult`, `PerformanceTimings`,
+`PipelineResult`, `PlanStatus`/`MutationStatus`/`PipelineStatus`),
+`planner.py` (`TranslationPlanner` — builds the complete plan, running
+Milestone 3's `TextFitEngine` per unit, BEFORE any mutation; resolves
+identity purely from the Document Model's `span_id`, never a
+positional PyMuPDF index), `validator.py` (`PlanValidator` — point-4
+collision/overlap analysis: translated-translated overlaps, expansion
+into an untouched source block/image/drawing, page-bounds violations;
+only NEWLY introduced overlaps are ever flagged, never a pre-existing
+legitimate one), `executor.py` (`MutationExecutor` — the transactional
+mutation stage: pre-verify every region before touching anything,
+redact all, commit all, reinsert all via the EXISTING `LayoutRenderer`,
+save to `.tmp`; source PDF never touched), `verifier.py`
+(`DocumentVerifier` — structural + text-layer(absence-only) + pixel
+checks, every check tagged with its `category` so none are conflated;
+OCR check present as a `skipped` `VerificationCheck` via a clean
+`OCRVerifier` protocol, no OCR dependency added), `pipeline.py`
+(`TranslationPipeline` — the transactional orchestrator: temp output
+only promoted to the real path after verification passes, discarded
+otherwise).
+
+`scripts/fixtures/build_pipeline_fixture.py` +
+`tests/fixtures/pipeline_multilingual.pdf` — point-10 fixture: English,
+Telugu, Hindi, Tamil, Kannada, mixed-script, an image, a vector
+drawing, all spatially separated, plus an untouched paragraph for
+protected-content testing. Same `insert_text`+`fontfile=` construction
+as the Milestone 2 fixture (byte-exact ground truth), for the same
+reason (Decision 7's Milestone-2 update).
+
+41 new tests across `test_pipeline_planner.py` (6),
+`test_pipeline_validator.py` (8), `test_pipeline_executor.py` (6),
+`test_pipeline_verifier.py` (8), `test_pipeline_e2e.py` (13) — **109
+tests passing total** (up from 68), covering: multi-block/multi-
+language plan generation, plan validation (all 5 collision kinds),
+complete mutation, protected-content preservation, geometry
+preservation (byte-identical untouched blocks), all 7 of point 12's
+failure/rollback cases (NO_FIT, invalid geometry, missing source text,
+overlapping regions, page-bounds violation, renderer/missing-font
+failure, verification failure), determinism, and stage-level
+performance timing.
+
+### Real bug found and fixed during implementation
+
+The executor's render-time CSS initially omitted `line-height`/
+`text-align`, which `TextMeasurer` (Milestone 3) always includes when
+fitting. This made `insert_htmlbox` lay out text differently at
+mutation time than during fitting — a plan that measured as
+`FIT_AFTER_BOTH` then reported "clipped" when actually rendered
+(caught immediately by `test_successful_mutation_produces_valid_temp_pdf`,
+not shipped silently). Fixed by carrying `line_height`/`alignment`
+through `PlannedTranslation` (set by the planner from `RenderConfig`)
+so the executor's render CSS is byte-identical to what
+`TextFitEngine`/`TextMeasurer` actually measured. **Lesson recorded in
+`ARCHITECTURE_DECISIONS.md` Decision 14: any config affecting
+`insert_htmlbox` layout must travel with the plan, not be re-derived
+at mutation time — a divergence there silently invalidates the fit
+decision.**
+
+### Experimentally observed behavior (not claimed, measured)
+
+Whole-document pipeline, 5 blocks / 1 page (Telugu, Hindi, Tamil,
+Kannada, mixed): **656.6ms total, 131.3ms/block average** — planning+
+fit 365.0ms (73ms/block), validation 0.5ms (negligible), mutation
+142.8ms, verification 148.2ms (the priciest stage after planning+fit:
+re-opens 2-3 PDF handles, re-extracts the output document, renders
+per-region pixmaps). Not yet tested at real multi-page/many-block
+scale — see `docs/research/EXPERIMENTS.md` #11.
+
+### Remaining / open questions (not resolved here)
+
+- **Whole-document scale untested** (Experiment #11) — only 1 page / 5
+  blocks measured.
+- **Two-layer collision defense only exercised via synthetic/injected
+  plans in tests, not organic multi-block competition on a dense real
+  page** (Experiment #12) — both e2e collision tests use a stub
+  planner to inject a guaranteed collision, because Milestone 3's own
+  fit-time obstacle avoidance already prevents naive collisions from
+  occurring organically on the current (spatially generous) fixture.
+- **Verification cost may not scale linearly** — currently re-extracts
+  and re-checks the FULL output document regardless of how few blocks
+  changed; a targeted "only touched pages" optimization is deferred
+  until Experiment #11 shows it's actually needed.
+- **No translation engine** — `TranslationInput` remains fixture/
+  test-supplied only, per the explicit stop condition. IndicTrans2/
+  Qwen/Ollama/PaddleOCR were not installed or integrated.
+
+**Next: Milestone 5 — Translation Provider Integration** (informed by
+Experiments #6 (Windows/IndicTransToolkit feasibility) and #11/#12
+above).
+
+---
+
+## Previous milestones
+
+### Milestone 3 — Automatic Text-Fit Engine: DONE (2026-09-08).
+
+#### Completed components
 
 - `core/layout/models.py` — `TextFitRequest` (source id, target text,
   language/script, available rect + `safety_inset`, style, font
@@ -56,18 +157,19 @@ giant prompt" — see CLAUDE.md's development protocol.
   `test_layout_engine.py`) covering all 16 cases point I asks for plus
   the `safety_inset` geometry concept — 68 tests passing total.
 
-### Experimentally observed behavior (not claimed, measured)
+#### Experimentally observed behavior (not claimed, measured)
 
 - Fit-engine cost across the 15 fixture cases: **339ms total, 22.6ms/
   block average** (range ~6.5ms single-attempt fit to ~43ms an
   8-attempt binary search) — see `docs/research/EXPERIMENTS.md` #10.
   Acceptable for a local Streamlit app at the scale tested; whole-document
-  scale (hundreds of blocks) not yet tested.
+  scale (hundreds of blocks) not yet tested at the time (now partly
+  addressed in Milestone 4 above, still not at full scale).
 - Binary search converges within its 20-iteration cap on every fixture
   case tested (typically 6-8 attempts to converge from an 18pt→6pt
   range at a 0.5pt step) — never needed the full cap in this pass.
 
-### Remaining components / open questions (explicitly not resolved here)
+#### Remaining components / open questions (explicitly not resolved here)
 
 - **Monotonicity assumption unverified at scale** (`docs/research/EXPERIMENTS.md`
   #8): the binary search assumes a smaller font size always fits if a
@@ -80,21 +182,13 @@ giant prompt" — see CLAUDE.md's development protocol.
   may decline fits a smarter policy could achieve — left conservative
   on purpose per CLAUDE.md's "minimal change" rule, not because a
   better policy is impossible.
-- **Whole-document application not built** — this milestone fits ONE
-  block/span per `TextFitEngine.fit()` call; a pipeline that plans
-  every block on a page/document, applies all edits, and only then
-  re-extracts (per known limitation #2 below) is Milestone 4 territory.
+- **Whole-document application not built at the time** — this
+  milestone fit ONE block/span per `TextFitEngine.fit()` call; a
+  pipeline that plans every block on a page/document, applies all
+  edits, and only then re-extracts (per known limitation #2 below) was
+  Milestone 4's job — **now DONE, see Milestone 4 above.**
 - **No new dependencies were needed** — `pymupdf`/`pydantic` already
   covered everything; `docs/dependencies.md` unchanged this milestone.
-
-**Next: Milestone 4 — whole-document redact/reinsert using the
-text-fit engine's plans**, informed by Experiments #8/#9/#10 above and
-Milestone 2's known limitation #2 (extract once, plan everything, edit
-in one pass, don't interleave extract/edit/re-extract).
-
----
-
-## Previous milestones
 
 ### Milestone 2 — Document Model: DONE (2026-09-08).
 
@@ -249,17 +343,20 @@ Note: this session's "Milestone 2" (Document Model) is a superset of
 master plan Section 53's M2 groundwork — it built the full normalized
 model/extraction/serialization layer plus a single-block redact/
 reinsert proof, rather than only "exact text replacement." This
-session's "Milestone 3" built the deterministic text-fit engine but
-NOT its whole-document application — that remains M4 below.
+session's "Milestone 3" built the deterministic text-fit engine, and
+"Milestone 4" built its whole-document application (plan/validate/
+mutate/verify) — still with translations supplied by fixtures only,
+no translation engine integrated yet.
 
 1. ✅ PDF Forensics (`PDF → inspect → JSON`)
 2. ✅ Document Model + single-block redact/reinsert proof (this session)
 3. ✅ Automatic text-fit engine (geometry tolerance → binary-search
-   font reduction → structured NO_FIT; this session) — whole-document
-   application deferred to M4
-4. ⬜ Whole-document redact/reinsert pipeline, applying the text-fit
-   engine's plans across every block on a page (extract once, plan
-   everything, edit in one pass — per Milestone 2's known limitation #2)
+   font reduction → structured NO_FIT; this session)
+4. ✅ Whole-document redact/reinsert pipeline (`core/pipeline/`;
+   extract once, plan everything via the text-fit engine, validate
+   collisions, mutate in one transactional pass, verify — never
+   interleave extract/edit/re-extract, per Milestone 2's known
+   limitation #2). Translations still fixture-supplied only.
 4b. ⬜ Language detection
 5. ⬜ Translation provider integration
 6. ⬜ Context-aware (paragraph-level) translation
@@ -294,6 +391,10 @@ NOT its whole-document application — that remains M4 below.
   `measurer.py`, `engine.py`, `numerals.py`). `core/pdf/renderer.py`'s
   `LayoutRenderer` is the "TextRenderer" this connects to, not a
   separate module.
+- `core/pipeline/` — Milestone 4's whole-document pipeline
+  (`models.py`, `planner.py`, `validator.py`, `executor.py`,
+  `verifier.py`, `pipeline.py`). Entry point:
+  `pipeline.TranslationPipeline().run(request)`.
 
 ## Custom skills installed
 

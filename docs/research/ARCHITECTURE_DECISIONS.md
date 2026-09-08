@@ -595,3 +595,115 @@ needed, not preemptively.
    `insert_htmlbox`, not the classic PyMuPDF text-insertion APIs. This
    must be validated empirically in Milestone 2, not deferred.
 4. Both changes are reflected in the updated `PROJECT_STATE.md`.
+
+---
+
+## 14. Whole-document pipeline architecture (Milestone 4)
+
+**Decision:** `EXTRACT -> PLAN -> FIT -> VALIDATE PLAN -> MUTATE -> VERIFY`,
+implemented as five separate modules under `core/pipeline/`
+(`planner.py`, `validator.py`, `executor.py`, `verifier.py`,
+`pipeline.py` as the orchestrator) — never
+`EXTRACT -> EDIT -> RE-EXTRACT -> EDIT -> ...`. The (immutable)
+Document Model is the single source of truth for every stage; nothing
+re-derives span/block identity from a post-edit PDF re-extraction.
+
+**Evidence:** Directly required by Milestone 2's finding (this
+document, Decision "block identity" note in `PROJECT_STATE.md`'s known
+limitations): PyMuPDF's own block `number` field is a positional,
+snapshot-local index that shifts after any edit. A pipeline that
+interleaved extract/edit/re-extract would silently mismatch blocks
+after the first edit. Keying everything by `SourceSpan.span_id`
+(stable for the life of one `Document` object) and computing the
+entire `TranslationPlan` before any mutation sidesteps this entirely.
+
+**Stable-ID strategy:** `TranslationPlanner._index_spans()` builds a
+`span_id -> (SourceSpan, page_index)` map from the Document Model
+ONCE, before planning. All downstream stages (validator, executor,
+verifier) operate on that plan's own `PlannedTranslation.source_rect`
+(captured at planning time), never a fresh lookup. The one place a
+fresh re-extraction happens is `DocumentVerifier`, and only to compare
+the OUTPUT file against the (already-known) source Document Model
+after mutation — that re-extraction is a verification READ, not a
+input to any further edit, so it doesn't reintroduce the instability
+problem.
+
+**Mutation ordering:** exactly point 5's recommended order — load a
+fresh PDF handle, pre-verify every planned region (page index in
+range, geometry sane, expected source text present; ANY failure aborts
+with ZERO redactions applied), redact all planned regions, commit all
+redactions per affected page in one `apply_redactions` call each,
+reinsert all translated content via the existing `LayoutRenderer`,
+save to a `.tmp` path. The original source file is opened read-only in
+effect (a fresh `pymupdf.open()` per pipeline run) and never
+overwritten.
+
+**Transaction model:** `TranslationPipeline.run()` only promotes the
+`.tmp` output to the real `output_path` (via `os.replace`, atomic on
+the same filesystem) after `DocumentVerifier` passes. Any failure at
+any stage — fit, validation, mutation, or verification — returns a
+structured `PipelineResult` with `output_path=None` and deletes any
+temp file already written. This is the point-8 "PASS -> final.pdf /
+FAIL -> discard temp" model, implemented literally, not just
+conceptually.
+
+**Collision policy:** a second, independent safety layer on top of
+Milestone 3's own fit-time obstacle avoidance (`TextFitEngine`'s
+`_expand_rect`, which already refuses to expand into a KNOWN
+obstacle). The validator (`core/pipeline/validator.py`) re-checks the
+COMPLETE set of fitted rects against each other and against every
+untouched source object, catching a class of collision the fit engine
+alone cannot see: two translated blocks planned independently can each
+legitimately avoid the OTHER's original position while still ending up
+overlapping each other's final fitted rect (fit-time obstacle checks
+only see original geometry, not sibling plans-in-progress). Per point
+4's explicit distinction, only NEWLY introduced overlaps are flagged —
+a source block already legitimately overlapping something is left
+alone (`rect.intersects(other) and not source_rect.intersects(other)`
+in every check).
+
+**Verification strategy and `get_text()` limitations:** four
+mechanisms, explicitly tagged per check (`VerificationCheck.category`)
+so none are conflated (point 9E): structural (opens, page count,
+dimensions, mutation count, preserved untouched content/images/
+drawings), text-layer (ONLY used to confirm ABSENCE of the original
+source string post-redaction — reliable, since it doesn't depend on
+`insert_htmlbox`'s corrupted ToUnicode output; never used to confirm
+the NEW translated text is byte-correct), pixel (protected regions
+must be pixel-identical before/after; translated regions are checked
+only for "something changed," not correctness), and OCR (deferred per
+point 9D — represented as a `skipped` check via a clean `OCRVerifier`
+protocol, not silently omitted or faked).
+
+**Real bug found and fixed during implementation:** the executor's
+render-time CSS initially omitted `line-height`/`text-align`, which
+`TextMeasurer` (Milestone 3) always includes. This caused
+`insert_htmlbox` to lay out text differently at mutation time than it
+did during fitting — a plan that measured as `FIT_AFTER_BOTH` then
+reported "clipped" when actually rendered. Fixed by carrying
+`line_height`/`alignment` through `PlannedTranslation` from
+`RenderConfig` at planning time, so the executor's render CSS is
+byte-identical to what was measured. This is recorded as a concrete
+lesson, not hidden: **any config that affects `insert_htmlbox`
+layout must be part of the plan, not re-derived at mutation time** —
+a divergence there silently invalidates the fit decision.
+
+**Alternatives:** interleaved extract/edit/re-extract (rejected —
+directly contradicted by Milestone 2's own finding); a single
+monolithic module instead of 5 separate ones (rejected — point 14
+explicitly asks for separated responsibilities, and the separation
+paid off immediately by making the CSS bug isolable to one module).
+
+**Risks:** whole-document performance measured on a 5-block, 1-page
+fixture (656ms total, ~131ms/block including planning+fit+mutation+
+verification) — not yet tested at real multi-page/many-block scale;
+verification cost (re-opening 2-3 PDF handles, re-extracting the
+output, per-region pixmap renders) is currently the single largest
+per-run cost after planning+fit and could dominate at scale. Tracked
+in `docs/research/EXPERIMENTS.md`.
+
+**Future replacement path:** if verification cost becomes a bottleneck,
+consider narrowing pixel checks to changed regions only (already the
+case) plus a sampling strategy for very many untouched blocks rather
+than checking every single one — but only once profiling on a real
+multi-page document shows it's needed.
